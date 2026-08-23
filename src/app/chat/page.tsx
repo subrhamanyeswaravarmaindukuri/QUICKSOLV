@@ -292,73 +292,167 @@ function ChatContent() {
   const [dualTaskCurrent, setDualTaskCurrent] = useState<any>(null);
   const [dualTaskUserSelected, setDualTaskUserSelected] = useState<number[]>([]);
 
+  // Level Progression System States (1 to 10 Level Buttons per game)
+  const [selectedGameLevel, setSelectedGameLevel] = useState<number>(1);
+  const [completedGameLevels, setCompletedGameLevels] = useState<Record<string, number[]>>({
+    rule_switch: [1],
+    sequence_memory: [],
+    word_scramble: [],
+    dual_task: []
+  });
+
+  // Load level progress from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("quicksolv_completed_levels");
+      if (saved) {
+        setCompletedGameLevels(JSON.parse(saved));
+      }
+    } catch {}
+  }, []);
+
   // Dynamic Procedural Brain Game Generators (100% Unique per attempt for every user)
-  const startBrainGameRound = (gameId: string, round: number) => {
+  const startBrainGameRound = (gameId: string, round: number, level: number = 1) => {
+    const COLOR_EMOJIS = ["🔴", "🔵", "🟢", "🟡", "🟣", "🟧"];
+
     if (gameId === "rule_switch") {
       setRuleSwitchSelected(null);
-      const ruleBank = [
-        {
-          rule: "Tap RED 🔴",
-          desc: "Current Rule: Select the red color option",
-          correct: "🔴",
-          options: ["🔴", "🔵", "🟢", "🟡"].sort(() => Math.random() - 0.5)
-        },
-        {
-          rule: "Tap BLUE 🔵",
-          desc: "Current Rule: Select the blue color option",
-          correct: "🔵",
-          options: ["🔴", "🔵", "🟢", "🟡"].sort(() => Math.random() - 0.5)
-        },
-        {
-          rule: "Tap anything NOT BLUE 🚫🔵",
-          desc: "Inverse Rule: Tap any color except blue",
-          correct: Math.random() > 0.5 ? "🔴" : "🟢",
-          options: ["🔵", "🔴", "🟢", "🟡"].sort(() => Math.random() - 0.5)
-        },
-        {
-          rule: "⚡ RULE SWITCH! Tap EVEN numbers",
-          desc: "Rule changed! Focus on even values",
-          correct: "14",
-          options: ["7", "14", "21", "33"].sort(() => Math.random() - 0.5)
-        },
-        {
+
+      // Random archetype selection (10 dynamic rule types)
+      const ruleType = Math.floor(Math.random() * 10);
+      let rObj: any = {};
+
+      if (ruleType === 0) {
+        const targetColor = COLOR_EMOJIS[Math.floor(Math.random() * COLOR_EMOJIS.length)];
+        const opts = [...COLOR_EMOJIS].sort(() => Math.random() - 0.5).slice(0, 4);
+        if (!opts.includes(targetColor)) opts[0] = targetColor;
+        rObj = {
+          rule: `Tap ${targetColor}`,
+          desc: "Target Match: Tap the exact matching color symbol",
+          correct: targetColor,
+          options: opts.sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 1) {
+        const avoidColor = COLOR_EMOJIS[Math.floor(Math.random() * COLOR_EMOJIS.length)];
+        const validColors = COLOR_EMOJIS.filter(c => c !== avoidColor);
+        const correctColor = validColors[Math.floor(Math.random() * validColors.length)];
+        const opts = [avoidColor, ...validColors.slice(0, 3)].sort(() => Math.random() - 0.5);
+        rObj = {
+          rule: `Tap anything NOT ${avoidColor} 🚫`,
+          desc: "Inverse Rule: Tap any color except the prohibited color",
+          correct: correctColor,
+          options: opts
+        };
+      } else if (ruleType === 2) {
+        const wantEven = Math.random() > 0.5;
+        const evenNum = (Math.floor(Math.random() * 40) + 1) * 2;
+        const odd1 = (Math.floor(Math.random() * 40)) * 2 + 1;
+        const odd2 = (Math.floor(Math.random() * 40)) * 2 + 1;
+        const odd3 = (Math.floor(Math.random() * 40)) * 2 + 1;
+        rObj = {
+          rule: wantEven ? "⚡ RULE SWITCH! Tap EVEN numbers" : "⚡ RULE SWITCH! Tap ODD numbers",
+          desc: wantEven ? "Focus on even values" : "Focus on odd values",
+          correct: wantEven ? evenNum.toString() : odd1.toString(),
+          options: [evenNum.toString(), odd1.toString(), odd2.toString(), odd3.toString()].sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 3) {
+        const nums = Array.from({ length: 4 }, () => Math.floor(Math.random() * 90) + 10);
+        const maxVal = Math.max(...nums);
+        rObj = {
           rule: "Tap the LARGEST number",
           desc: "Compare values and select the highest number",
-          correct: "89",
-          options: ["12", "89", "45", "67"].sort(() => Math.random() - 0.5)
-        },
-        {
-          rule: "Don't tap numbers containing 3",
-          desc: "Avoid any number that has digit 3",
-          correct: "24",
-          options: ["13", "33", "24", "39"].sort(() => Math.random() - 0.5)
-        }
-      ];
-      const rObj = ruleBank[round % ruleBank.length];
+          correct: maxVal.toString(),
+          options: nums.map(n => n.toString()).sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 4) {
+        const nums = Array.from({ length: 4 }, () => Math.floor(Math.random() * 90) + 10);
+        const minVal = Math.min(...nums);
+        rObj = {
+          rule: "Tap the SMALLEST number",
+          desc: "Compare values and select the lowest number",
+          correct: minVal.toString(),
+          options: nums.map(n => n.toString()).sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 5) {
+        const digitToAvoid = [3, 7, 5, 9][Math.floor(Math.random() * 4)];
+        const bad1 = `${Math.floor(Math.random() * 8) + 1}${digitToAvoid}`;
+        const bad2 = `${digitToAvoid}${Math.floor(Math.random() * 8) + 1}`;
+        const bad3 = `${digitToAvoid}${digitToAvoid}`;
+        const safe = "24";
+        rObj = {
+          rule: `Don't tap numbers containing digit ${digitToAvoid}`,
+          desc: `Avoid any number with digit ${digitToAvoid}`,
+          correct: safe,
+          options: [bad1, bad2, bad3, safe].sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 6) {
+        const threshold = (Math.floor(Math.random() * 5) + 3) * 10;
+        const highNum = threshold + Math.floor(Math.random() * 20) + 5;
+        const low1 = threshold - Math.floor(Math.random() * 10) - 2;
+        const low2 = threshold - Math.floor(Math.random() * 10) - 5;
+        const low3 = threshold - Math.floor(Math.random() * 10) - 8;
+        rObj = {
+          rule: `Tap numbers > ${threshold}`,
+          desc: `Focus on numbers strictly greater than ${threshold}`,
+          correct: highNum.toString(),
+          options: [highNum.toString(), low1.toString(), low2.toString(), low3.toString()].sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 7) {
+        const shapes = ["🔺 Triangle", "🟦 Square", "🟢 Circle", "⭐ Star"];
+        const targetShape = shapes[Math.floor(Math.random() * shapes.length)];
+        rObj = {
+          rule: `Tap ${targetShape}`,
+          desc: "Target Match: Select the matching shape",
+          correct: targetShape,
+          options: [...shapes].sort(() => Math.random() - 0.5)
+        };
+      } else if (ruleType === 8) {
+        const base = Math.floor(Math.random() * 8) + 2;
+        const mult = base * (Math.floor(Math.random() * 4) + 2);
+        const wrong1 = mult + 2;
+        const wrong2 = mult - 3;
+        const wrong3 = mult + 5;
+        rObj = {
+          rule: `Tap numbers divisible by ${base}`,
+          desc: `Select the multiple of ${base}`,
+          correct: mult.toString(),
+          options: [mult.toString(), wrong1.toString(), wrong2.toString(), wrong3.toString()].sort(() => Math.random() - 0.5)
+        };
+      } else {
+        const color = COLOR_EMOJIS[Math.floor(Math.random() * COLOR_EMOJIS.length)];
+        const opts = [...COLOR_EMOJIS].sort(() => Math.random() - 0.5).slice(0, 4);
+        if (!opts.includes(color)) opts[0] = color;
+        rObj = {
+          rule: `⚡ RULE SWITCH! Tap ${color}`,
+          desc: "Fast Rule Shift: React to new color target",
+          correct: color,
+          options: opts.sort(() => Math.random() - 0.5)
+        };
+      }
+
       setRuleSwitchCurrent(rObj);
     } else if (gameId === "sequence_memory") {
       setSequenceUser([]);
       setSequencePhase("preview");
       setActiveSeqIndex(null);
-      const seqItems = ["🟦", "🟢", "🔴", "🟡", "🟣", "🟧"];
-      const targetLen = round + 2; // Round 0: 2, Round 1: 3, Round 2: 4, Round 3: 5
+      const seqSymbols = ["🟦", "🟢", "🔴", "🟡", "🟣", "🟧", "⭐", "💎"];
+      const targetLen = Math.min(level + round + 1, 9);
       const generatedSeq: string[] = [];
       for (let i = 0; i < targetLen; i++) {
-        generatedSeq.push(seqItems[Math.floor(Math.random() * seqItems.length)]);
+        generatedSeq.push(seqSymbols[Math.floor(Math.random() * seqSymbols.length)]);
       }
       setSequenceTarget(generatedSeq);
 
-      // Play sequence preview animation
       generatedSeq.forEach((_, idx) => {
         setTimeout(() => {
           setActiveSeqIndex(idx);
-        }, idx * 600);
+        }, idx * 550);
       });
 
       setTimeout(() => {
         setActiveSeqIndex(null);
         setSequencePhase("recall");
-      }, targetLen * 600 + 400);
+      }, targetLen * 550 + 350);
     } else if (gameId === "word_scramble") {
       setUnscrambleInput("");
       const ACADEMIC_WORDS_BANK = [
@@ -409,20 +503,27 @@ function ChatContent() {
       setWordScrambleCurrent({ word: wObj.word, clue: wObj.clue, scrambled });
     } else if (gameId === "dual_task") {
       setDualTaskUserSelected([]);
-      const dualRounds = [
-        {
+      const rndType = Math.floor(Math.random() * 4);
+      let dObj: any = {};
+
+      if (rndType === 0) {
+        const evens = [2, 4, 6, 8, 12, 14, 16, 18, 22, 24, 26, 28].sort(() => Math.random() - 0.5).slice(0, 3);
+        const badEvens = [13, 23, 30, 32, 34, 36].sort(() => Math.random() - 0.5).slice(0, 1);
+        const odds = [7, 9, 11, 15, 17, 19, 21].sort(() => Math.random() - 0.5).slice(0, 2);
+
+        const items = [
+          ...evens.map((n, i) => ({ id: i, val: n.toString(), isCorrect: true })),
+          ...badEvens.map((n, i) => ({ id: i + 3, val: n.toString(), isCorrect: false })),
+          ...odds.map((n, i) => ({ id: i + 4, val: n.toString(), isCorrect: false }))
+        ].sort(() => Math.random() - 0.5);
+
+        dObj = {
           rule1: "Rule 1: Tap EVEN numbers",
           rule2: "Rule 2: Never tap numbers containing 3",
-          items: [
-            { id: 0, val: "2", isCorrect: true },
-            { id: 1, val: "7", isCorrect: false },
-            { id: 2, val: "6", isCorrect: true },
-            { id: 3, val: "13", isCorrect: false },
-            { id: 4, val: "8", isCorrect: true },
-            { id: 5, val: "4", isCorrect: true }
-          ]
-        },
-        {
+          items
+        };
+      } else if (rndType === 1) {
+        dObj = {
           rule1: "Rule 1: Tap GREEN items 🟢",
           rule2: "Rule 2: Ignore CIRCLES",
           items: [
@@ -432,9 +533,10 @@ function ChatContent() {
             { id: 3, val: "🟢 Triangle", isCorrect: true },
             { id: 4, val: "🔵 Triangle", isCorrect: false },
             { id: 5, val: "🟢 Star", isCorrect: true }
-          ]
-        },
-        {
+          ].sort(() => Math.random() - 0.5)
+        };
+      } else if (rndType === 2) {
+        dObj = {
           rule1: "Rule 1: Tap numbers > 15",
           rule2: "Rule 2: Ignore EVEN numbers",
           items: [
@@ -444,9 +546,10 @@ function ChatContent() {
             { id: 3, val: "12", isCorrect: false },
             { id: 4, val: "31", isCorrect: true },
             { id: 5, val: "8", isCorrect: false }
-          ]
-        },
-        {
+          ].sort(() => Math.random() - 0.5)
+        };
+      } else {
+        dObj = {
           rule1: "Rule 1: Tap BLUE symbols 🔵",
           rule2: "Rule 2: Never tap numbers containing 5",
           items: [
@@ -456,10 +559,10 @@ function ChatContent() {
             { id: 3, val: "🔵 48", isCorrect: true },
             { id: 4, val: "🟢 35", isCorrect: false },
             { id: 5, val: "🔵 91", isCorrect: true }
-          ]
-        }
-      ];
-      setDualTaskCurrent(dualRounds[round % dualRounds.length]);
+          ].sort(() => Math.random() - 0.5)
+        };
+      }
+      setDualTaskCurrent(dObj);
     }
   };
 
@@ -7715,10 +7818,7 @@ function ChatContent() {
                         key={game.id}
                         onClick={() => {
                           setSelectedBrainGame(game.id);
-                          setBrainGameScore(0);
-                          setBrainGameRound(0);
-                          setStreakModalView("playing");
-                          startBrainGameRound(game.id, 0);
+                          setStreakModalView("levels");
                         }}
                         className={`p-3.5 border rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer shadow-2xs ${game.bg}`}
                       >
@@ -7738,6 +7838,64 @@ function ChatContent() {
                 </div>
               )}
 
+              {/* View 3: levels (Select Level 1 to 10) */}
+              {streakModalView === "levels" && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h4 className="font-bold text-gray-900 text-xs flex items-center justify-center gap-1.5 uppercase font-serif">
+                      <span>🏆</span> Select Level (1 - 10)
+                    </h4>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Complete Level 1 to unlock Level 2. Green badges show finished levels!
+                    </p>
+                  </div>
+
+                  {/* Level Grid (1 to 10 Level Buttons) */}
+                  <div className="grid grid-cols-5 gap-2 my-2">
+                    {Array.from({ length: 10 }).map((_, idx) => {
+                      const lvl = idx + 1;
+                      const completedList = completedGameLevels[selectedBrainGame] || [];
+                      const isCompleted = completedList.includes(lvl);
+                      const isUnlocked = lvl === 1 || completedList.includes(lvl - 1) || isCompleted;
+
+                      let btnStyle = "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed";
+                      if (isCompleted) {
+                        btnStyle = "bg-green-500 border-green-600 text-white font-black shadow-sm hover:bg-green-600 cursor-pointer";
+                      } else if (isUnlocked) {
+                        btnStyle = "bg-[#4A2711] border-[#4A2711] text-white font-bold shadow-sm hover:bg-[#5c3216] cursor-pointer animate-pulse";
+                      }
+
+                      return (
+                        <button
+                          key={lvl}
+                          disabled={!isUnlocked}
+                          onClick={() => {
+                            setSelectedGameLevel(lvl);
+                            setBrainGameScore(0);
+                            setBrainGameRound(0);
+                            setStreakModalView("playing");
+                            startBrainGameRound(selectedBrainGame, 0, lvl);
+                          }}
+                          className={`h-11 rounded-xl border flex flex-col items-center justify-center text-xs transition duration-150 relative ${btnStyle}`}
+                        >
+                          <span className="font-mono font-bold text-xs">L{lvl}</span>
+                          <span className="text-[8px] font-semibold">
+                            {isCompleted ? "✓ Done" : isUnlocked ? "Play" : "🔒 Lock"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setStreakModalView("categories")}
+                    className="w-full py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-center text-xs transition cursor-pointer"
+                  >
+                    Back to Games List
+                  </button>
+                </div>
+              )}
+
               {/* View 4: playing (Interactive Brain Mini-Game Canvas) */}
               {streakModalView === "playing" && (
                 <div className="space-y-4">
@@ -7745,12 +7903,12 @@ function ChatContent() {
                   {/* Game Header Progress */}
                   <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 border-b border-gray-100 pb-2">
                     <span className="uppercase text-[#4A2711] flex items-center gap-1">
-                      {selectedBrainGame === "rule_switch" && "⚡ Rule Switch"}
-                      {selectedBrainGame === "sequence_memory" && "🧠 Sequence Memory"}
-                      {selectedBrainGame === "word_scramble" && "💡 Word Unscramble"}
-                      {selectedBrainGame === "dual_task" && "🎯 Dual Task"}
+                      {selectedBrainGame === "rule_switch" && `⚡ Rule Switch (Lvl ${selectedGameLevel})`}
+                      {selectedBrainGame === "sequence_memory" && `🧠 Sequence Memory (Lvl ${selectedGameLevel})`}
+                      {selectedBrainGame === "word_scramble" && `💡 Word Unscramble (Lvl ${selectedGameLevel})`}
+                      {selectedBrainGame === "dual_task" && `🎯 Dual Task (Lvl ${selectedGameLevel})`}
                     </span>
-                    <span>ROUND {brainGameRound + 1} OF {selectedBrainGame === "word_scramble" ? 3 : 4}</span>
+                    <span>ROUND {brainGameRound + 1} OF 8</span>
                   </div>
 
                   {/* GAME 1: RULE SWITCH */}
@@ -7769,17 +7927,28 @@ function ChatContent() {
                             onClick={() => {
                               setRuleSwitchSelected(opt);
                               const isCorrect = opt === ruleSwitchCurrent.correct;
-                              const addScore = isCorrect ? 25 : 0;
+                              const addScore = isCorrect ? 15 : 0;
                               const newTotal = brainGameScore + addScore;
 
                               setTimeout(() => {
-                                if (brainGameRound < 3) {
+                                if (brainGameRound < 7) {
                                   setBrainGameScore(newTotal);
                                   const nextR = brainGameRound + 1;
                                   setBrainGameRound(nextR);
-                                  startBrainGameRound("rule_switch", nextR);
+                                  startBrainGameRound("rule_switch", nextR, selectedGameLevel);
                                 } else {
                                   setBrainGameScore(newTotal);
+                                  // Mark level completed
+                                  const currentCompleted = completedGameLevels[selectedBrainGame] || [];
+                                  if (!currentCompleted.includes(selectedGameLevel)) {
+                                    const updated = {
+                                      ...completedGameLevels,
+                                      [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
+                                    };
+                                    setCompletedGameLevels(updated);
+                                    localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
+                                  }
+
                                   const todayStr = new Date().toISOString().split("T")[0];
                                   const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
                                   if (lastEarned !== todayStr) {
@@ -7827,7 +7996,7 @@ function ChatContent() {
                         {sequenceTarget.map((item, idx) => (
                           <div
                             key={idx}
-                            className={`w-12 h-12 rounded-2xl border flex items-center justify-center text-xl transition duration-300 ${
+                            className={`w-11 h-11 rounded-2xl border flex items-center justify-center text-lg transition duration-300 ${
                               activeSeqIndex === idx
                                 ? "bg-amber-400 border-amber-500 scale-110 shadow-lg animate-bounce"
                                 : sequencePhase === "recall"
@@ -7852,16 +8021,26 @@ function ChatContent() {
 
                                 if (nextUserSeq.length === sequenceTarget.length) {
                                   const isCorrect = sequenceTarget.every((val, i) => val === nextUserSeq[i]);
-                                  const addScore = isCorrect ? 25 : 10;
+                                  const addScore = isCorrect ? 15 : 5;
                                   const newTotal = brainGameScore + addScore;
 
-                                  if (brainGameRound < 3) {
+                                  if (brainGameRound < 7) {
                                     setBrainGameScore(newTotal);
                                     const nextR = brainGameRound + 1;
                                     setBrainGameRound(nextR);
-                                    startBrainGameRound("sequence_memory", nextR);
+                                    startBrainGameRound("sequence_memory", nextR, selectedGameLevel);
                                   } else {
                                     setBrainGameScore(newTotal);
+                                    const currentCompleted = completedGameLevels[selectedBrainGame] || [];
+                                    if (!currentCompleted.includes(selectedGameLevel)) {
+                                      const updated = {
+                                        ...completedGameLevels,
+                                        [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
+                                      };
+                                      setCompletedGameLevels(updated);
+                                      localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
+                                    }
+
                                     const todayStr = new Date().toISOString().split("T")[0];
                                     const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
                                     if (lastEarned !== todayStr) {
@@ -7908,16 +8087,26 @@ function ChatContent() {
                         <button
                           onClick={() => {
                             const isCorrect = unscrambleInput.trim().toUpperCase() === wordScrambleCurrent.word;
-                            const addScore = isCorrect ? 35 : 0;
+                            const addScore = isCorrect ? 15 : 0;
                             const newTotal = brainGameScore + addScore;
 
-                            if (brainGameRound < 2) {
+                            if (brainGameRound < 7) {
                               setBrainGameScore(newTotal);
                               const nextR = brainGameRound + 1;
                               setBrainGameRound(nextR);
-                              startBrainGameRound("word_scramble", nextR);
+                              startBrainGameRound("word_scramble", nextR, selectedGameLevel);
                             } else {
                               setBrainGameScore(newTotal);
+                              const currentCompleted = completedGameLevels[selectedBrainGame] || [];
+                              if (!currentCompleted.includes(selectedGameLevel)) {
+                                const updated = {
+                                  ...completedGameLevels,
+                                  [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
+                                };
+                                setCompletedGameLevels(updated);
+                                localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
+                              }
+
                               const todayStr = new Date().toISOString().split("T")[0];
                               const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
                               if (lastEarned !== todayStr) {
@@ -7980,16 +8169,26 @@ function ChatContent() {
                         onClick={() => {
                           const correctItemIds = dualTaskCurrent.items.filter((i: any) => i.isCorrect).map((i: any) => i.id);
                           const isCorrect = correctItemIds.length === dualTaskUserSelected.length && correctItemIds.every((id: number) => dualTaskUserSelected.includes(id));
-                          const addScore = isCorrect ? 25 : 10;
+                          const addScore = isCorrect ? 15 : 5;
                           const newTotal = brainGameScore + addScore;
 
-                          if (brainGameRound < 3) {
+                          if (brainGameRound < 7) {
                             setBrainGameScore(newTotal);
                             const nextR = brainGameRound + 1;
                             setBrainGameRound(nextR);
-                            startBrainGameRound("dual_task", nextR);
+                            startBrainGameRound("dual_task", nextR, selectedGameLevel);
                           } else {
                             setBrainGameScore(newTotal);
+                            const currentCompleted = completedGameLevels[selectedBrainGame] || [];
+                            if (!currentCompleted.includes(selectedGameLevel)) {
+                              const updated = {
+                                ...completedGameLevels,
+                                [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
+                              };
+                              setCompletedGameLevels(updated);
+                              localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
+                            }
+
                             const todayStr = new Date().toISOString().split("T")[0];
                             const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
                             if (lastEarned !== todayStr) {
