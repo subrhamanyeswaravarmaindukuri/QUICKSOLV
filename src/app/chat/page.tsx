@@ -301,12 +301,20 @@ function ChatContent() {
     dual_task: []
   });
 
-  // Load level progress from localStorage on mount
+  // Load level progress & persistent daily streak from localStorage on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("quicksolv_completed_levels");
-      if (saved) {
-        setCompletedGameLevels(JSON.parse(saved));
+      const savedLevels = localStorage.getItem("quicksolv_completed_levels");
+      if (savedLevels) {
+        setCompletedGameLevels(JSON.parse(savedLevels));
+      }
+
+      const savedStreak = localStorage.getItem("quicksolv_streak_count");
+      if (savedStreak !== null) {
+        setStreakCount(parseInt(savedStreak, 10) || 1);
+      } else {
+        setStreakCount(1);
+        localStorage.setItem("quicksolv_streak_count", "1");
       }
     } catch {}
   }, []);
@@ -4814,10 +4822,10 @@ function ChatContent() {
           <div className="bg-white border border-gray-200/60 rounded-2xl p-4 shadow-sm space-y-3.5">
             <h3 className="text-xs font-bold text-gray-905 font-serif">Study Streak</h3>
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🔥</span>
+              <span className="text-2xl animate-pulse">🔥</span>
               <div>
-                <div className="text-lg font-bold text-gray-900">12 Days</div>
-                <div className="text-[10px] text-gray-400 font-medium">Keep it up!</div>
+                <div className="text-lg font-bold text-gray-900">{streakCount} Days</div>
+                <div className="text-[10px] text-gray-400 font-medium">Daily Streak Active</div>
               </div>
             </div>
             {/* Streak row */}
