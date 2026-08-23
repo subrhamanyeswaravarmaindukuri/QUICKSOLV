@@ -68,7 +68,8 @@ function ChatContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Active view in workspace
-  const [currentTab, setCurrentTab] = useState("Home"); // Home | History | Saved | Quiz | Notes
+  const [currentTab, setCurrentTab] = useState("Home"); // Home | Quiz | Notes | Study Plan | Settings | Profile
+  const [settingsTab, setSettingsTab] = useState<"history" | "saved" | "config">("history");
 
   // Workspace Chat State
   const [conversations, setConversations] = useState<any[]>([]);
@@ -3059,63 +3060,119 @@ function ChatContent() {
     };
 
     return (
-      <div className="flex-1 p-6 bg-[#FCF9F5] overflow-y-auto space-y-6 max-w-2xl mx-auto">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-gray-900 font-serif">⚙️ System Settings</h1>
-          <p className="text-xs text-gray-400">Configure your custom AI models and direct API access credentials.</p>
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#FCF9F5]">
+        {/* Settings Header & Sub-Tab Bar */}
+        <div className="p-6 pb-2 shrink-0 border-b border-gray-200/60 bg-white shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 font-serif flex items-center gap-2">
+                Settings ⚙️
+              </h1>
+              <p className="text-xs text-gray-450 mt-0.5">Manage your chat history, saved study items, and API settings.</p>
+            </div>
+          </div>
+
+          <div className="flex border-b border-gray-200/80 pb-px gap-2 text-xs font-semibold select-none overflow-x-auto">
+            <button
+              onClick={() => setSettingsTab("history")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition ${
+                settingsTab === "history"
+                  ? "bg-[#FAF5EE] text-[#4A2711] font-bold border border-[#EADDC9]"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <History className="w-4 h-4" />
+              History
+            </button>
+
+            <button
+              onClick={() => setSettingsTab("saved")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition ${
+                settingsTab === "saved"
+                  ? "bg-[#FAF5EE] text-[#4A2711] font-bold border border-[#EADDC9]"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              Saved
+            </button>
+
+            <button
+              onClick={() => setSettingsTab("config")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition ${
+                settingsTab === "config"
+                  ? "bg-[#FAF5EE] text-[#4A2711] font-bold border border-[#EADDC9]"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <SettingsIcon className="w-4 h-4" />
+              API & Model Keys
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={saveSettings} className="bg-white border border-gray-200/80 rounded-3xl p-6 shadow-sm space-y-5 text-xs font-sans">
-          
-          <div className="space-y-2">
-            <label className="text-[10px] font-extrabold text-gray-450 uppercase tracking-wider block">
-              Google Gemini API Key
-            </label>
-            <input
-              type="password"
-              value={geminiApiKey}
-              onChange={(e) => setGeminiApiKey(e.target.value)}
-              placeholder="AIzaSy..."
-              className="w-full p-3 rounded-xl border border-gray-200 focus:ring-1 focus:ring-[#4A2711] focus:outline-none text-[11px] font-mono text-gray-800"
-            />
-            <p className="text-[10px] text-gray-400 leading-normal">
-              Direct connection to Gemini models (e.g. `gemini-2.5-flash`). Get one for free from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-[#4A2711] font-bold hover:underline">Google AI Studio</a>.
-            </p>
-          </div>
+        {/* Sub-tab content view */}
+        <div className="flex-1 overflow-hidden flex">
+          {settingsTab === "history" ? (
+            renderHistoryTabContent()
+          ) : settingsTab === "saved" ? (
+            renderSavedTabContent()
+          ) : (
+            <div className="flex-1 p-6 overflow-y-auto max-w-2xl mx-auto space-y-6">
+              <form onSubmit={saveSettings} className="bg-white border border-gray-200/80 rounded-3xl p-6 shadow-sm space-y-5 text-xs font-sans">
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-extrabold text-gray-450 uppercase tracking-wider block">
+                    Google Gemini API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={geminiApiKey}
+                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-1 focus:ring-[#4A2711] focus:outline-none text-[11px] font-mono text-gray-800"
+                  />
+                  <p className="text-[10px] text-gray-400 leading-normal">
+                    Direct connection to Gemini models (e.g. `gemini-2.5-flash`). Get one for free from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-[#4A2711] font-bold hover:underline">Google AI Studio</a>.
+                  </p>
+                </div>
 
-          <div className="space-y-2 border-t border-gray-100 pt-4">
-            <label className="text-[10px] font-extrabold text-gray-455 uppercase tracking-wider block">
-              OpenRouter API Key (Optional)
-            </label>
-            <input
-              type="password"
-              value={openRouterApiKey}
-              onChange={(e) => setOpenRouterApiKey(e.target.value)}
-              placeholder="sk-or-v1-..."
-              className="w-full p-3 rounded-xl border border-gray-200 focus:ring-1 focus:ring-[#4A2711] focus:outline-none text-[11px] font-mono text-gray-800"
-            />
-            <p className="text-[10px] text-gray-400 leading-normal">
-              Access premium models like Claude 3.5 Sonnet, GPT-4o, and Llama models. Configure your keys at <a href="https://openrouter.ai/" target="_blank" rel="noreferrer" className="text-[#4A2711] font-bold hover:underline">OpenRouter</a>.
-            </p>
-          </div>
+                <div className="space-y-2 border-t border-gray-100 pt-4">
+                  <label className="text-[10px] font-extrabold text-gray-455 uppercase tracking-wider block">
+                    OpenRouter API Key (Optional)
+                  </label>
+                  <input
+                    type="password"
+                    value={openRouterApiKey}
+                    onChange={(e) => setOpenRouterApiKey(e.target.value)}
+                    placeholder="sk-or-v1-..."
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-1 focus:ring-[#4A2711] focus:outline-none text-[11px] font-mono text-gray-800"
+                  />
+                  <p className="text-[10px] text-gray-400 leading-normal">
+                    Access premium models like Claude 3.5 Sonnet, GPT-4o, and Llama models. Configure your keys at <a href="https://openrouter.ai/" target="_blank" rel="noreferrer" className="text-[#4A2711] font-bold hover:underline">OpenRouter</a>.
+                  </p>
+                </div>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => setCurrentTab("Home")}
-              className="flex-1 py-2.5 bg-gray-50 hover:bg-gray-100 text-xs font-bold rounded-xl transition text-gray-700 border border-gray-200/50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white text-xs font-bold rounded-xl transition shadow-sm"
-            >
-              Save Settings
-            </button>
-          </div>
+                <div className="flex gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentTab("Home")}
+                    className="flex-1 py-2.5 bg-gray-50 hover:bg-gray-100 text-xs font-bold rounded-xl transition text-gray-700 border border-gray-200/50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white text-xs font-bold rounded-xl transition shadow-sm"
+                  >
+                    Save Settings
+                  </button>
+                </div>
 
-        </form>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -4647,11 +4704,10 @@ function ChatContent() {
           <nav className="px-3 space-y-0.5">
             {[
               { name: "Home", icon: HomeIcon },
-              { name: "History", icon: History },
-              { name: "Saved", icon: Bookmark },
               { name: "Quiz", icon: HelpCircle },
               { name: "Notes", icon: FileText },
-              { name: "Study Plan", icon: Calendar }
+              { name: "Study Plan", icon: Calendar },
+              { name: "Settings", icon: SettingsIcon }
             ].map(item => {
               const Icon = item.icon;
               const isActive = currentTab === item.name;
