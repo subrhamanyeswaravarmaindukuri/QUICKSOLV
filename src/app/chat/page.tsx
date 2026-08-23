@@ -292,14 +292,107 @@ function ChatContent() {
   const [dualTaskCurrent, setDualTaskCurrent] = useState<any>(null);
   const [dualTaskUserSelected, setDualTaskUserSelected] = useState<number[]>([]);
 
-  // Level Progression System States (1 to 10 Level Buttons per game)
+  // Level Progression System States (Levels 1 to 100 per game)
   const [selectedGameLevel, setSelectedGameLevel] = useState<number>(1);
+  const [levelPage, setLevelPage] = useState<number>(1); // Page 1: 1-10, Page 2: 11-20, Page 3: 21-30, ... Page 10: 91-100
   const [completedGameLevels, setCompletedGameLevels] = useState<Record<string, number[]>>({
     rule_switch: [1],
     sequence_memory: [],
     word_scramble: [],
     dual_task: []
   });
+
+  // Real-time Game Timer (Starts from 0s)
+  const [gameTimerSeconds, setGameTimerSeconds] = useState<number>(0);
+  const [gameTimerActive, setGameTimerActive] = useState<boolean>(false);
+  const [gameFinalTime, setGameFinalTime] = useState<number>(0);
+
+  // Real-time Game Timer Hook
+  useEffect(() => {
+    let interval: any = null;
+    if (gameTimerActive) {
+      interval = setInterval(() => {
+        setGameTimerSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [gameTimerActive]);
+
+  // Daily Leaderboard helper function (resets daily, sorted by fastest time)
+  const getDailyLeaderboard = (gameId: string) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const key = `quicksolv_leaderboard_${todayStr}_${gameId}`;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+
+    const defaultPlayers = [
+      { name: "Rahul S.", timeSec: 14, score: 95, avatar: "👨‍🎓" },
+      { name: "Ananya M.", timeSec: 18, score: 90, avatar: "👩‍🔬" },
+      { name: "Vikram K.", timeSec: 22, score: 85, avatar: "👨‍💻" },
+      { name: "Priya P.", timeSec: 27, score: 80, avatar: "👩‍🎓" },
+      { name: "Arjun V.", timeSec: 31, score: 75, avatar: "👨‍🏫" }
+    return defaultPlayers;
+  };
+
+  // Complete Game Level Handler: Timer, Streak, Level Progress & Daily Leaderboard
+  const handleFinishLevel = (finalScore: number) => {
+    setGameTimerActive(false);
+    const totalTime = gameTimerSeconds;
+    setGameFinalTime(totalTime);
+
+    // 1. Level Completion & Auto-Pagination (Levels 1 to 100)
+    const currentCompleted = completedGameLevels[selectedBrainGame] || [];
+    if (!currentCompleted.includes(selectedGameLevel)) {
+      const updated = {
+        ...completedGameLevels,
+        [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
+      };
+      setCompletedGameLevels(updated);
+      localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
+
+      // Auto advance to next 10-level page when reaching end of page (e.g. lvl 10 -> page 2)
+      if (selectedGameLevel % 10 === 0 && levelPage < 10) {
+        setLevelPage(prev => prev + 1);
+      }
+    }
+
+    // 2. Real-Time Persistent Daily Streak (+1 per calendar day)
+    const todayStr = new Date().toISOString().split("T")[0];
+    const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
+    if (lastEarned !== todayStr) {
+      const newCount = Math.max((streakCount || 0) + 1, 1);
+      setStreakCount(newCount);
+      localStorage.setItem("quicksolv_streak_count", newCount.toString());
+      localStorage.setItem("quicksolv_streak_last_date", todayStr);
+      setStreakEarnedNewToday(true);
+    } else {
+      setStreakEarnedNewToday(false);
+    }
+
+    // 3. Update Today's Daily Leaderboard (Sorted by speed/lowest timeSec!)
+    const lbKey = `quicksolv_leaderboard_${todayStr}_${selectedBrainGame}`;
+    const currentLb = getDailyLeaderboard(selectedBrainGame);
+    const userName = user?.user_metadata?.full_name || profileData.fullName || "You (Player)";
+    
+    const userEntry = {
+      name: userName,
+      timeSec: totalTime,
+      score: finalScore,
+      avatar: "🌟",
+      isCurrentUser: true
+    };
+
+    const updatedLb = [...currentLb.filter((p: any) => !p.isCurrentUser), userEntry].sort((a: any, b: any) => a.timeSec - b.timeSec);
+    localStorage.setItem(lbKey, JSON.stringify(updatedLb));
+
+    setStreakModalView("score");
+  };
 
   // Load level progress & persistent daily streak from localStorage on mount
   useEffect(() => {
@@ -310,8 +403,8 @@ function ChatContent() {
       }
 
       const savedStreak = localStorage.getItem("quicksolv_streak_count");
-      if (savedStreak !== null) {
-        setStreakCount(parseInt(savedStreak, 10) || 1);
+      if (savedStreak !== null && parseInt(savedStreak, 10) > 0) {
+        setStreakCount(parseInt(savedStreak, 10));
       } else {
         setStreakCount(1);
         localStorage.setItem("quicksolv_streak_count", "1");
@@ -7866,22 +7959,43 @@ function ChatContent() {
                 </div>
               )}
 
-              {/* View 3: levels (Select Level 1 to 10) */}
+              {/* View 3: levels (Select Level 1 to 100 with 10 Levels per Page) */}
               {streakModalView === "levels" && (
                 <div className="space-y-4">
                   <div className="text-center">
                     <h4 className="font-bold text-gray-900 text-xs flex items-center justify-center gap-1.5 uppercase font-serif">
-                      <span>🏆</span> Select Level (1 - 10)
+                      <span>🏆</span> Select Level ({(levelPage - 1) * 10 + 1} - {levelPage * 10} of 100)
                     </h4>
                     <p className="text-[10px] text-gray-400 mt-0.5">
                       Complete Level 1 to unlock Level 2. Green badges show finished levels!
                     </p>
                   </div>
 
-                  {/* Level Grid (1 to 10 Level Buttons) */}
+                  {/* Level Page Pagination Controls */}
+                  <div className="flex items-center justify-between px-1">
+                    <button
+                      disabled={levelPage <= 1}
+                      onClick={() => setLevelPage(prev => Math.max(1, prev - 1))}
+                      className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      ◄ Prev 10
+                    </button>
+                    <span className="text-[10px] font-bold text-[#4A2711]">
+                      Page {levelPage} of 10
+                    </span>
+                    <button
+                      disabled={levelPage >= 10}
+                      onClick={() => setLevelPage(prev => Math.min(10, prev + 1))}
+                      className="px-2.5 py-1 text-[10px] font-bold rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      Next 10 ►
+                    </button>
+                  </div>
+
+                  {/* Level Grid (10 Level Buttons per Page) */}
                   <div className="grid grid-cols-5 gap-2 my-2">
                     {Array.from({ length: 10 }).map((_, idx) => {
-                      const lvl = idx + 1;
+                      const lvl = (levelPage - 1) * 10 + idx + 1;
                       const completedList = completedGameLevels[selectedBrainGame] || [];
                       const isCompleted = completedList.includes(lvl);
                       const isUnlocked = lvl === 1 || completedList.includes(lvl - 1) || isCompleted;
@@ -7901,6 +8015,8 @@ function ChatContent() {
                             setSelectedGameLevel(lvl);
                             setBrainGameScore(0);
                             setBrainGameRound(0);
+                            setGameTimerSeconds(0);
+                            setGameTimerActive(true);
                             setStreakModalView("playing");
                             startBrainGameRound(selectedBrainGame, 0, lvl);
                           }}
@@ -7924,17 +8040,20 @@ function ChatContent() {
                 </div>
               )}
 
-              {/* View 4: playing (Interactive Brain Mini-Game Canvas) */}
+              {/* View 4: playing (Interactive Brain Mini-Game Canvas with Real-Time Timer) */}
               {streakModalView === "playing" && (
                 <div className="space-y-4">
                   
                   {/* Game Header Progress */}
                   <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 border-b border-gray-100 pb-2">
-                    <span className="uppercase text-[#4A2711] flex items-center gap-1">
+                    <span className="uppercase text-[#4A2711] flex items-center gap-1.5">
                       {selectedBrainGame === "rule_switch" && `⚡ Rule Switch (Lvl ${selectedGameLevel})`}
                       {selectedBrainGame === "sequence_memory" && `🧠 Sequence Memory (Lvl ${selectedGameLevel})`}
                       {selectedBrainGame === "word_scramble" && `💡 Word Unscramble (Lvl ${selectedGameLevel})`}
                       {selectedBrainGame === "dual_task" && `🎯 Dual Task (Lvl ${selectedGameLevel})`}
+                      <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-mono text-[9px]">
+                        ⏱️ {gameTimerSeconds}s
+                      </span>
                     </span>
                     <span>ROUND {brainGameRound + 1} OF 8</span>
                   </div>
@@ -7966,29 +8085,7 @@ function ChatContent() {
                                   startBrainGameRound("rule_switch", nextR, selectedGameLevel);
                                 } else {
                                   setBrainGameScore(newTotal);
-                                  // Mark level completed
-                                  const currentCompleted = completedGameLevels[selectedBrainGame] || [];
-                                  if (!currentCompleted.includes(selectedGameLevel)) {
-                                    const updated = {
-                                      ...completedGameLevels,
-                                      [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
-                                    };
-                                    setCompletedGameLevels(updated);
-                                    localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
-                                  }
-
-                                  const todayStr = new Date().toISOString().split("T")[0];
-                                  const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                                  if (lastEarned !== todayStr) {
-                                    const newCount = (streakCount || 0) + 1;
-                                    setStreakCount(newCount);
-                                    localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                                    localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                                    setStreakEarnedNewToday(true);
-                                  } else {
-                                    setStreakEarnedNewToday(false);
-                                  }
-                                  setStreakModalView("score");
+                                  handleFinishLevel(newTotal);
                                 }
                               }, 300);
                             }}
@@ -8059,28 +8156,7 @@ function ChatContent() {
                                     startBrainGameRound("sequence_memory", nextR, selectedGameLevel);
                                   } else {
                                     setBrainGameScore(newTotal);
-                                    const currentCompleted = completedGameLevels[selectedBrainGame] || [];
-                                    if (!currentCompleted.includes(selectedGameLevel)) {
-                                      const updated = {
-                                        ...completedGameLevels,
-                                        [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
-                                      };
-                                      setCompletedGameLevels(updated);
-                                      localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
-                                    }
-
-                                    const todayStr = new Date().toISOString().split("T")[0];
-                                    const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                                    if (lastEarned !== todayStr) {
-                                      const newCount = (streakCount || 0) + 1;
-                                      setStreakCount(newCount);
-                                      localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                                      localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                                      setStreakEarnedNewToday(true);
-                                    } else {
-                                      setStreakEarnedNewToday(false);
-                                    }
-                                    setStreakModalView("score");
+                                    handleFinishLevel(newTotal);
                                   }
                                 }
                               }}
@@ -8125,28 +8201,7 @@ function ChatContent() {
                               startBrainGameRound("word_scramble", nextR, selectedGameLevel);
                             } else {
                               setBrainGameScore(newTotal);
-                              const currentCompleted = completedGameLevels[selectedBrainGame] || [];
-                              if (!currentCompleted.includes(selectedGameLevel)) {
-                                const updated = {
-                                  ...completedGameLevels,
-                                  [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
-                                };
-                                setCompletedGameLevels(updated);
-                                localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
-                              }
-
-                              const todayStr = new Date().toISOString().split("T")[0];
-                              const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                              if (lastEarned !== todayStr) {
-                                const newCount = (streakCount || 0) + 1;
-                                setStreakCount(newCount);
-                                localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                                localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                                setStreakEarnedNewToday(true);
-                              } else {
-                                setStreakEarnedNewToday(false);
-                              }
-                              setStreakModalView("score");
+                              handleFinishLevel(newTotal);
                             }
                           }}
                           className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition cursor-pointer shadow-sm text-xs"
@@ -8207,28 +8262,7 @@ function ChatContent() {
                             startBrainGameRound("dual_task", nextR, selectedGameLevel);
                           } else {
                             setBrainGameScore(newTotal);
-                            const currentCompleted = completedGameLevels[selectedBrainGame] || [];
-                            if (!currentCompleted.includes(selectedGameLevel)) {
-                              const updated = {
-                                ...completedGameLevels,
-                                [selectedBrainGame]: [...currentCompleted, selectedGameLevel]
-                              };
-                              setCompletedGameLevels(updated);
-                              localStorage.setItem("quicksolv_completed_levels", JSON.stringify(updated));
-                            }
-
-                            const todayStr = new Date().toISOString().split("T")[0];
-                            const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                            if (lastEarned !== todayStr) {
-                              const newCount = (streakCount || 0) + 1;
-                              setStreakCount(newCount);
-                              localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                              localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                              setStreakEarnedNewToday(true);
-                            } else {
-                              setStreakEarnedNewToday(false);
-                            }
-                            setStreakModalView("score");
+                            handleFinishLevel(newTotal);
                           }
                         }}
                         className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition cursor-pointer shadow-sm text-xs mt-2"
@@ -8241,39 +8275,92 @@ function ChatContent() {
                 </div>
               )}
 
-              {/* View 5: score (Trophy & Daily Streak Rewards) */}
+              {/* View 5: score (Trophy, Daily Streak & Today's Results Board) */}
               {streakModalView === "score" && (
-                <div className="space-y-4 py-2 text-center">
+                <div className="space-y-4 py-1 text-center">
                   <span className="text-4xl animate-bounce">🏆</span>
                   <div className="space-y-1">
-                    <h4 className="text-base font-bold text-gray-900 font-serif">Brain Challenge Completed!</h4>
+                    <h4 className="text-base font-bold text-gray-900 font-serif">Level {selectedGameLevel} Completed!</h4>
                     <p className="text-[10px] text-gray-500 font-semibold">
                       {streakEarnedNewToday 
-                        ? "🎉 +1 Day successfully added to your Daily Streak!"
-                        : "You've already secured today's streak! Keep training your brain daily."}
+                        ? `🎉 +1 Day added! Your Daily Streak is now ${streakCount} Days! 🔥`
+                        : `🔥 Daily Streak Credit Secured! (${streakCount} Days Active)`}
                     </p>
                   </div>
 
-                  <div className="my-4 p-4 bg-amber-50/70 border border-amber-200 rounded-2xl max-w-xs mx-auto space-y-1">
-                    <span className="text-[10px] text-amber-800 font-bold uppercase tracking-wider">YOUR BRAIN SCORE</span>
-                    <h2 className="text-3xl font-black text-[#4A2711]">
-                      {brainGameScore} / 100
-                    </h2>
-                    <p className="text-[9.5px] text-gray-600 font-medium italic">
-                      {brainGameScore >= 75 ? "Excellent sharpness & focus! Master Thinking Level! ⚡" : "Good effort! Practice daily to sharpen logic!"}
-                    </p>
+                  {/* Score & Time Summary */}
+                  <div className="my-2 p-3 bg-amber-50/70 border border-amber-200 rounded-2xl max-w-xs mx-auto flex justify-around items-center">
+                    <div>
+                      <div className="text-[9px] text-amber-800 font-bold uppercase tracking-wider">BRAIN SCORE</div>
+                      <div className="text-xl font-black text-[#4A2711]">{brainGameScore} / 120</div>
+                    </div>
+                    <div className="h-8 w-px bg-amber-200" />
+                    <div>
+                      <div className="text-[9px] text-amber-800 font-bold uppercase tracking-wider">TIME TAKEN</div>
+                      <div className="text-xl font-black text-[#4A2711]">⏱️ {gameFinalTime}s</div>
+                    </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  {/* Daily Leaderboard Results Board with Gold/Silver/Bronze */}
+                  <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 space-y-2 text-left shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                      <span className="text-[10px] font-extrabold text-gray-900 uppercase font-serif flex items-center gap-1">
+                        <span>📊</span> Today's Live Results Board
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-400">Sorted by Speed</span>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {getDailyLeaderboard(selectedBrainGame).map((player: any, rankIdx: number) => {
+                        const rank = rankIdx + 1;
+                        let badgeStyle = "bg-gray-50 border-gray-200 text-gray-700";
+                        let medal = `#${rank}`;
+
+                        if (rank === 1) {
+                          badgeStyle = "bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-2xs";
+                          medal = "🥇 1st";
+                        } else if (rank === 2) {
+                          badgeStyle = "bg-slate-100/90 border-slate-300 text-slate-900 font-bold shadow-2xs";
+                          medal = "🥈 2nd";
+                        } else if (rank === 3) {
+                          badgeStyle = "bg-orange-100/80 border-orange-300 text-orange-950 font-bold shadow-2xs";
+                          medal = "🥉 3rd";
+                        }
+
+                        return (
+                          <div
+                            key={rankIdx}
+                            className={`p-2 rounded-xl border flex items-center justify-between text-xs transition ${badgeStyle} ${
+                              player.isCurrentUser ? "ring-2 ring-[#4A2711]" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs shrink-0 font-bold">{medal}</span>
+                              <span className="text-base shrink-0">{player.avatar}</span>
+                              <span className="font-bold truncate text-[11px]">
+                                {player.name} {player.isCurrentUser ? "(You)" : ""}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono font-bold">
+                              <span>⏱️ {player.timeSec}s</span>
+                              <span className="text-emerald-700">{player.score} pts</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 pt-1">
                     <button
                       onClick={() => {
                         setBrainGameScore(0);
                         setBrainGameRound(0);
-                        setStreakModalView("categories");
+                        setStreakModalView("levels");
                       }}
                       className="flex-1 py-2.5 bg-white border border-[#4A2711] text-[#4A2711] font-bold rounded-xl hover:bg-[#4A2711]/5 transition cursor-pointer text-xs"
                     >
-                      🎮 Choose Another Game
+                      🎮 Play Next Level
                     </button>
                     <button
                       onClick={() => setShowStreakModal(false)}
