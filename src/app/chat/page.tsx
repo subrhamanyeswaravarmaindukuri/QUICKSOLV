@@ -301,6 +301,7 @@ function ChatContent() {
     word_scramble: [],
     dual_task: []
   });
+  const [viewingLevelResult, setViewingLevelResult] = useState<number | null>(null);
 
   // Real-time Game Timer (Starts from 0s)
   const [gameTimerSeconds, setGameTimerSeconds] = useState<number>(0);
@@ -320,25 +321,18 @@ function ChatContent() {
     return () => clearInterval(interval);
   }, [gameTimerActive]);
 
-  // Daily Leaderboard helper function (resets daily, sorted by fastest time)
+  // Daily Leaderboard helper function (100% REAL COMPLETIONS ONLY - ZERO FAKE PLAYERS!)
   const getDailyLeaderboard = (gameId: string) => {
     const todayStr = new Date().toISOString().split("T")[0];
     const key = `quicksolv_leaderboard_${todayStr}_${gameId}`;
     const saved = localStorage.getItem(key);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       } catch {}
     }
-
-    const defaultPlayers = [
-      { name: "Rahul S.", timeSec: 14, score: 95, avatar: "👨‍🎓" },
-      { name: "Ananya M.", timeSec: 18, score: 90, avatar: "👩‍🔬" },
-      { name: "Vikram K.", timeSec: 22, score: 85, avatar: "👨‍💻" },
-      { name: "Priya P.", timeSec: 27, score: 80, avatar: "👩‍🎓" },
-      { name: "Arjun V.", timeSec: 31, score: 75, avatar: "👨‍🏫" }
-    ];
-    return defaultPlayers;
+    return []; // ZERO FAKE PLAYERS! Returns empty array if no real completion recorded today.
   };
 
   // Complete Game Level Handler: Timer, Streak, Level Progress & Daily Leaderboard
@@ -347,7 +341,7 @@ function ChatContent() {
     const totalTime = gameTimerSeconds;
     setGameFinalTime(totalTime);
 
-    // 1. Level Completion & Auto-Pagination (Levels 1 to 100)
+    // 1. Level Completion & Save Per-Level Scorecard
     const currentCompleted = completedGameLevels[selectedBrainGame] || [];
     if (!currentCompleted.includes(selectedGameLevel)) {
       const updated = {
@@ -362,6 +356,17 @@ function ChatContent() {
         setLevelPage(prev => prev + 1);
       }
     }
+
+    // Save individual level result scorecard for green box click inspection
+    const scorecard = {
+      gameId: selectedBrainGame,
+      level: selectedGameLevel,
+      score: finalScore,
+      timeSec: totalTime,
+      dateCompleted: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      timeCompleted: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+    };
+    localStorage.setItem(`quicksolv_level_result_${selectedBrainGame}_${selectedGameLevel}`, JSON.stringify(scorecard));
 
     // 2. Real-Time Persistent Daily Streak (+1 per calendar day, min 1)
     const todayStr = new Date().toISOString().split("T")[0];
@@ -380,7 +385,7 @@ function ChatContent() {
       setStreakEarnedNewToday(false);
     }
 
-    // 3. Update Today's Daily Leaderboard (Sorted by speed/lowest timeSec!)
+    // 3. Update Today's Real Daily Leaderboard (Sorted by speed/lowest timeSec!)
     const lbKey = `quicksolv_leaderboard_${todayStr}_${selectedBrainGame}`;
     const currentLb = getDailyLeaderboard(selectedBrainGame);
     const userName = user?.user_metadata?.full_name || profileData.fullName || "You (Player)";
@@ -390,10 +395,11 @@ function ChatContent() {
       timeSec: totalTime,
       score: finalScore,
       avatar: "🌟",
-      isCurrentUser: true
+      isCurrentUser: true,
+      level: selectedGameLevel
     };
 
-    const updatedLb = [...currentLb.filter((p: any) => !p.isCurrentUser), userEntry].sort((a: any, b: any) => a.timeSec - b.timeSec);
+    const updatedLb = [...currentLb.filter((p: any) => !p.isCurrentUser || p.level !== selectedGameLevel), userEntry].sort((a: any, b: any) => a.timeSec - b.timeSec);
     localStorage.setItem(lbKey, JSON.stringify(updatedLb));
 
     setStreakModalView("score");
@@ -631,14 +637,15 @@ function ChatContent() {
       let dObj: any = {};
 
       if (rndType === 0) {
-        const evens = [2, 4, 6, 8, 12, 14, 16, 18, 22, 24, 26, 28].sort(() => Math.random() - 0.5).slice(0, 3);
-        const badEvens = [13, 23, 30, 32, 34, 36].sort(() => Math.random() - 0.5).slice(0, 1);
-        const odds = [7, 9, 11, 15, 17, 19, 21].sort(() => Math.random() - 0.5).slice(0, 2);
+        const evens = Array.from({ length: 20 }, (_, i) => (i + 1) * 2).filter(n => !n.toString().includes("3")).sort(() => Math.random() - 0.5).slice(0, 3);
+        const badEvens = Array.from({ length: 20 }, (_, i) => (i + 1) * 2).filter(n => n.toString().includes("3")).sort(() => Math.random() - 0.5).slice(0, 1);
+        const odds = Array.from({ length: 20 }, (_, i) => i * 2 + 1).sort(() => Math.random() - 0.5).slice(0, 2);
 
+        let counter = 1;
         const items = [
-          ...evens.map((n, i) => ({ id: i, val: n.toString(), isCorrect: true })),
-          ...badEvens.map((n, i) => ({ id: i + 3, val: n.toString(), isCorrect: false })),
-          ...odds.map((n, i) => ({ id: i + 4, val: n.toString(), isCorrect: false }))
+          ...evens.map((n) => ({ id: counter++, val: n.toString(), isCorrect: true })),
+          ...badEvens.map((n) => ({ id: counter++, val: n.toString(), isCorrect: false })),
+          ...odds.map((n) => ({ id: counter++, val: n.toString(), isCorrect: false }))
         ].sort(() => Math.random() - 0.5);
 
         dObj = {
@@ -647,43 +654,61 @@ function ChatContent() {
           items
         };
       } else if (rndType === 1) {
+        const shapes = ["Square", "Triangle", "Star", "Hexagon", "Diamond"];
+        const colors = ["🟢", "🔴", "🔵", "🟡", "🟣"];
+        const generatedItems: any[] = [];
+        let counter = 1;
+
+        for (let i = 0; i < 3; i++) {
+          const shape = shapes[Math.floor(Math.random() * shapes.length)];
+          generatedItems.push({ id: counter++, val: `🟢 ${shape}`, isCorrect: true });
+        }
+        generatedItems.push({ id: counter++, val: "🟢 Circle", isCorrect: false });
+        for (let i = 0; i < 2; i++) {
+          const c = colors.filter(col => col !== "🟢")[Math.floor(Math.random() * 4)];
+          const s = shapes[Math.floor(Math.random() * shapes.length)];
+          generatedItems.push({ id: counter++, val: `${c} ${s}`, isCorrect: false });
+        }
+
         dObj = {
           rule1: "Rule 1: Tap GREEN items 🟢",
           rule2: "Rule 2: Ignore CIRCLES",
-          items: [
-            { id: 0, val: "🟢 Square", isCorrect: true },
-            { id: 1, val: "🔴 Square", isCorrect: false },
-            { id: 2, val: "🟢 Circle", isCorrect: false },
-            { id: 3, val: "🟢 Triangle", isCorrect: true },
-            { id: 4, val: "🔵 Triangle", isCorrect: false },
-            { id: 5, val: "🟢 Star", isCorrect: true }
-          ].sort(() => Math.random() - 0.5)
+          items: generatedItems.sort(() => Math.random() - 0.5)
         };
       } else if (rndType === 2) {
+        const threshold = (Math.floor(Math.random() * 4) + 2) * 10;
+        const validOdds = [threshold + 3, threshold + 7, threshold + 11, threshold + 15].sort(() => Math.random() - 0.5).slice(0, 3);
+        const badEvens = [threshold + 2, threshold + 6, threshold + 10].sort(() => Math.random() - 0.5).slice(0, 1);
+        const lowNums = [threshold - 5, threshold - 9].sort(() => Math.random() - 0.5).slice(0, 2);
+
+        let counter = 1;
+        const items = [
+          ...validOdds.map(n => ({ id: counter++, val: n.toString(), isCorrect: true })),
+          ...badEvens.map(n => ({ id: counter++, val: n.toString(), isCorrect: false })),
+          ...lowNums.map(n => ({ id: counter++, val: n.toString(), isCorrect: false }))
+        ].sort(() => Math.random() - 0.5);
+
         dObj = {
-          rule1: "Rule 1: Tap numbers > 15",
+          rule1: `Rule 1: Tap numbers > ${threshold}`,
           rule2: "Rule 2: Ignore EVEN numbers",
-          items: [
-            { id: 0, val: "19", isCorrect: true },
-            { id: 1, val: "24", isCorrect: false },
-            { id: 2, val: "27", isCorrect: true },
-            { id: 3, val: "12", isCorrect: false },
-            { id: 4, val: "31", isCorrect: true },
-            { id: 5, val: "8", isCorrect: false }
-          ].sort(() => Math.random() - 0.5)
+          items
         };
       } else {
+        const validBlues = [12, 24, 38, 46, 72, 84].sort(() => Math.random() - 0.5).slice(0, 3);
+        const badBlue5 = [25, 35, 54, 58].sort(() => Math.random() - 0.5).slice(0, 1);
+        const redOthers = [14, 28, 62].sort(() => Math.random() - 0.5).slice(0, 2);
+
+        let counter = 1;
+        const items = [
+          ...validBlues.map(n => ({ id: counter++, val: `🔵 ${n}`, isCorrect: true })),
+          ...badBlue5.map(n => ({ id: counter++, val: `🔵 ${n}`, isCorrect: false })),
+          ...redOthers.map(n => ({ id: counter++, val: `🔴 ${n}`, isCorrect: false }))
+        ].sort(() => Math.random() - 0.5);
+
         dObj = {
           rule1: "Rule 1: Tap BLUE symbols 🔵",
-          rule2: "Rule 2: Never tap numbers containing 5",
-          items: [
-            { id: 0, val: "🔵 12", isCorrect: true },
-            { id: 1, val: "🔴 14", isCorrect: false },
-            { id: 2, val: "🔵 25", isCorrect: false },
-            { id: 3, val: "🔵 48", isCorrect: true },
-            { id: 4, val: "🟢 35", isCorrect: false },
-            { id: 5, val: "🔵 91", isCorrect: true }
-          ].sort(() => Math.random() - 0.5)
+          rule2: "Rule 2: Never tap numbers containing digit 5",
+          items
         };
       }
       setDualTaskCurrent(dObj);
@@ -8031,19 +8056,24 @@ function ChatContent() {
                           key={lvl}
                           disabled={!isUnlocked}
                           onClick={() => {
-                            setSelectedGameLevel(lvl);
-                            setBrainGameScore(0);
-                            setBrainGameRound(0);
-                            setGameTimerSeconds(0);
-                            setGameTimerActive(true);
-                            setStreakModalView("playing");
-                            startBrainGameRound(selectedBrainGame, 0, lvl);
+                            if (isCompleted) {
+                              setViewingLevelResult(lvl);
+                              setStreakModalView("level_result");
+                            } else {
+                              setSelectedGameLevel(lvl);
+                              setBrainGameScore(0);
+                              setBrainGameRound(0);
+                              setGameTimerSeconds(0);
+                              setGameTimerActive(true);
+                              setStreakModalView("playing");
+                              startBrainGameRound(selectedBrainGame, 0, lvl);
+                            }
                           }}
                           className={`h-11 rounded-xl border flex flex-col items-center justify-center text-xs transition duration-150 relative ${btnStyle}`}
                         >
                           <span className="font-mono font-bold text-xs">L{lvl}</span>
                           <span className="text-[8px] font-semibold">
-                            {isCompleted ? "✓ Done" : isUnlocked ? "Play" : "🔒 Lock"}
+                            {isCompleted ? "✓ Result" : isUnlocked ? "Play" : "🔒 Lock"}
                           </span>
                         </button>
                       );
@@ -8066,6 +8096,70 @@ function ChatContent() {
                   </div>
                 </div>
               )}
+
+              {/* View 7: level_result (Per-Level Scorecard Modal View when Clicking Green Box) */}
+              {streakModalView === "level_result" && viewingLevelResult && (() => {
+                const key = `quicksolv_level_result_${selectedBrainGame}_${viewingLevelResult}`;
+                const saved = localStorage.getItem(key);
+                const data = saved ? JSON.parse(saved) : { score: 120, timeSec: gameFinalTime || 42, dateCompleted: "Today", timeCompleted: "" };
+
+                return (
+                  <div className="space-y-4 py-1 text-center">
+                    <span className="text-4xl animate-bounce">🏆</span>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-bold text-gray-900 font-serif">
+                        Level {viewingLevelResult} Saved Results
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
+                        {selectedBrainGame === "rule_switch" && "⚡ Rule Switch"}
+                        {selectedBrainGame === "sequence_memory" && "🧠 Sequence Memory"}
+                        {selectedBrainGame === "word_scramble" && "💡 Word Unscramble"}
+                        {selectedBrainGame === "dual_task" && "🎯 Dual Task"}
+                      </p>
+                    </div>
+
+                    <div className="my-3 p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl max-w-xs mx-auto space-y-2">
+                      <div className="flex justify-around items-center">
+                        <div>
+                          <div className="text-[9px] text-emerald-800 font-bold uppercase tracking-wider">BRAIN SCORE</div>
+                          <div className="text-xl font-black text-emerald-950">{data.score} / 120</div>
+                        </div>
+                        <div className="h-8 w-px bg-emerald-200" />
+                        <div>
+                          <div className="text-[9px] text-emerald-800 font-bold uppercase tracking-wider">TIME TAKEN</div>
+                          <div className="text-xl font-black text-emerald-950">⏱️ {data.timeSec}s</div>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-emerald-200/60 text-[9.5px] font-semibold text-emerald-800">
+                        ✓ Completed on {data.dateCompleted} {data.timeCompleted ? `at ${data.timeCompleted}` : ""}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2.5 pt-1">
+                      <button
+                        onClick={() => {
+                          setSelectedGameLevel(viewingLevelResult);
+                          setBrainGameScore(0);
+                          setBrainGameRound(0);
+                          setGameTimerSeconds(0);
+                          setGameTimerActive(true);
+                          setStreakModalView("playing");
+                          startBrainGameRound(selectedBrainGame, 0, viewingLevelResult);
+                        }}
+                        className="flex-1 py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl shadow-sm transition cursor-pointer text-xs"
+                      >
+                        🎮 Replay Level {viewingLevelResult}
+                      </button>
+                      <button
+                        onClick={() => setStreakModalView("levels")}
+                        className="flex-1 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl transition cursor-pointer text-xs"
+                      >
+                        Back to Levels
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* View 4: playing (Interactive Brain Mini-Game Canvas with Real-Time Timer) */}
               {streakModalView === "playing" && (
@@ -8338,43 +8432,51 @@ function ChatContent() {
                     </div>
 
                     <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                      {getDailyLeaderboard(selectedBrainGame).map((player: any, rankIdx: number) => {
-                        const rank = rankIdx + 1;
-                        let badgeStyle = "bg-gray-50 border-gray-200 text-gray-700";
-                        let medal = `#${rank}`;
+                      {getDailyLeaderboard(selectedBrainGame).length === 0 ? (
+                        <div className="py-4 text-center text-gray-500 space-y-1">
+                          <p className="text-lg">🚀</p>
+                          <p className="font-bold text-xs">No completions recorded today yet!</p>
+                          <p className="text-[9.5px] text-gray-400">You just set today's first 100% real speed record!</p>
+                        </div>
+                      ) : (
+                        getDailyLeaderboard(selectedBrainGame).map((player: any, rankIdx: number) => {
+                          const rank = rankIdx + 1;
+                          let badgeStyle = "bg-gray-50 border-gray-200 text-gray-700";
+                          let medal = `#${rank}`;
 
-                        if (rank === 1) {
-                          badgeStyle = "bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-2xs";
-                          medal = "🥇 1st";
-                        } else if (rank === 2) {
-                          badgeStyle = "bg-slate-100/90 border-slate-300 text-slate-900 font-bold shadow-2xs";
-                          medal = "🥈 2nd";
-                        } else if (rank === 3) {
-                          badgeStyle = "bg-orange-100/80 border-orange-300 text-orange-950 font-bold shadow-2xs";
-                          medal = "🥉 3rd";
-                        }
+                          if (rank === 1) {
+                            badgeStyle = "bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-2xs";
+                            medal = "🥇 1st";
+                          } else if (rank === 2) {
+                            badgeStyle = "bg-slate-100/90 border-slate-300 text-slate-900 font-bold shadow-2xs";
+                            medal = "🥈 2nd";
+                          } else if (rank === 3) {
+                            badgeStyle = "bg-orange-100/80 border-orange-300 text-orange-950 font-bold shadow-2xs";
+                            medal = "🥉 3rd";
+                          }
 
-                        return (
-                          <div
-                            key={rankIdx}
-                            className={`p-2 rounded-xl border flex items-center justify-between text-xs transition ${badgeStyle} ${
-                              player.isCurrentUser ? "ring-2 ring-[#4A2711]" : ""
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-xs shrink-0 font-bold">{medal}</span>
-                              <span className="text-base shrink-0">{player.avatar}</span>
-                              <span className="font-bold truncate text-[11px]">
-                                {player.name} {player.isCurrentUser ? "(You)" : ""}
-                              </span>
+                          return (
+                            <div
+                              key={rankIdx}
+                              className={`p-2 rounded-xl border flex items-center justify-between text-xs transition ${badgeStyle} ${
+                                player.isCurrentUser ? "ring-2 ring-[#4A2711]" : ""
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs shrink-0 font-bold">{medal}</span>
+                                <span className="text-base shrink-0">{player.avatar}</span>
+                                <span className="font-bold truncate text-[11px]">
+                                  {player.name} {player.isCurrentUser ? "(You)" : ""}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono font-bold">
+                                <span>⏱️ {player.timeSec}s</span>
+                                <span className="text-emerald-700">{player.score} pts</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono font-bold">
-                              <span>⏱️ {player.timeSec}s</span>
-                              <span className="text-emerald-700">{player.score} pts</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   </div>
 
@@ -8443,43 +8545,51 @@ function ChatContent() {
                     </div>
 
                     <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                      {getDailyLeaderboard(selectedBrainGame).map((player: any, rankIdx: number) => {
-                        const rank = rankIdx + 1;
-                        let badgeStyle = "bg-gray-50 border-gray-200 text-gray-700";
-                        let medal = `#${rank}`;
+                      {getDailyLeaderboard(selectedBrainGame).length === 0 ? (
+                        <div className="py-6 text-center text-gray-500 space-y-1.5">
+                          <p className="text-2xl">🚀</p>
+                          <p className="font-bold text-xs text-gray-800">No completions recorded today yet!</p>
+                          <p className="text-[10px] text-gray-400">Play a level to set today's first 100% real speed record!</p>
+                        </div>
+                      ) : (
+                        getDailyLeaderboard(selectedBrainGame).map((player: any, rankIdx: number) => {
+                          const rank = rankIdx + 1;
+                          let badgeStyle = "bg-gray-50 border-gray-200 text-gray-700";
+                          let medal = `#${rank}`;
 
-                        if (rank === 1) {
-                          badgeStyle = "bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-2xs";
-                          medal = "🥇 1st";
-                        } else if (rank === 2) {
-                          badgeStyle = "bg-slate-100/90 border-slate-300 text-slate-900 font-bold shadow-2xs";
-                          medal = "🥈 2nd";
-                        } else if (rank === 3) {
-                          badgeStyle = "bg-orange-100/80 border-orange-300 text-orange-950 font-bold shadow-2xs";
-                          medal = "🥉 3rd";
-                        }
+                          if (rank === 1) {
+                            badgeStyle = "bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-2xs";
+                            medal = "🥇 1st";
+                          } else if (rank === 2) {
+                            badgeStyle = "bg-slate-100/90 border-slate-300 text-slate-900 font-bold shadow-2xs";
+                            medal = "🥈 2nd";
+                          } else if (rank === 3) {
+                            badgeStyle = "bg-orange-100/80 border-orange-300 text-orange-950 font-bold shadow-2xs";
+                            medal = "🥉 3rd";
+                          }
 
-                        return (
-                          <div
-                            key={rankIdx}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${badgeStyle} ${
-                              player.isCurrentUser ? "ring-2 ring-[#4A2711]" : ""
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-xs shrink-0 font-bold">{medal}</span>
-                              <span className="text-base shrink-0">{player.avatar}</span>
-                              <span className="font-bold truncate text-[11px]">
-                                {player.name} {player.isCurrentUser ? "(You)" : ""}
-                              </span>
+                          return (
+                            <div
+                              key={rankIdx}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${badgeStyle} ${
+                                player.isCurrentUser ? "ring-2 ring-[#4A2711]" : ""
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs shrink-0 font-bold">{medal}</span>
+                                <span className="text-base shrink-0">{player.avatar}</span>
+                                <span className="font-bold truncate text-[11px]">
+                                  {player.name} {player.isCurrentUser ? "(You)" : ""}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2.5 shrink-0 text-[10px] font-mono font-bold">
+                                <span className="bg-amber-200/60 px-2 py-0.5 rounded-full text-amber-950">⏱️ {player.timeSec}s</span>
+                                <span className="text-emerald-700">{player.score} pts</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2.5 shrink-0 text-[10px] font-mono font-bold">
-                              <span className="bg-amber-200/60 px-2 py-0.5 rounded-full text-amber-950">⏱️ {player.timeSec}s</span>
-                              <span className="text-emerald-700">{player.score} pts</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   </div>
 
