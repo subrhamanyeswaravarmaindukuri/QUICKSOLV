@@ -8257,8 +8257,8 @@ function ChatContent() {
 
                       {/* Recall Buttons */}
                       {sequencePhase === "recall" && (
-                        <div className="grid grid-cols-3 gap-2 max-w-[220px] mx-auto">
-                          {["🟦", "🟢", "🔴", "🟡", "🟣", "🟧"].map((symbol) => (
+                        <div className="grid grid-cols-4 gap-2 max-w-[280px] mx-auto">
+                          {["🟦", "🟢", "🔴", "🟡", "🟣", "🟧", "⭐", "💎"].map((symbol) => (
                             <button
                               key={symbol}
                               onClick={() => {
