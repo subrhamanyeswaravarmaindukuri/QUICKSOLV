@@ -337,6 +337,7 @@ function ChatContent() {
       { name: "Vikram K.", timeSec: 22, score: 85, avatar: "👨‍💻" },
       { name: "Priya P.", timeSec: 27, score: 80, avatar: "👩‍🎓" },
       { name: "Arjun V.", timeSec: 31, score: 75, avatar: "👨‍🏫" }
+    ];
     return defaultPlayers;
   };
 
