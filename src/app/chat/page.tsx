@@ -354,17 +354,23 @@ function ChatContent() {
       } else if (ruleType === 2) {
         const wantEven = Math.random() > 0.5;
         const evenNum = (Math.floor(Math.random() * 40) + 1) * 2;
-        const odd1 = (Math.floor(Math.random() * 40)) * 2 + 1;
-        const odd2 = (Math.floor(Math.random() * 40)) * 2 + 1;
-        const odd3 = (Math.floor(Math.random() * 40)) * 2 + 1;
+        const oddSet = new Set<number>();
+        while (oddSet.size < 3) {
+          oddSet.add((Math.floor(Math.random() * 40)) * 2 + 1);
+        }
+        const odds = Array.from(oddSet).map(n => n.toString());
         rObj = {
           rule: wantEven ? "⚡ RULE SWITCH! Tap EVEN numbers" : "⚡ RULE SWITCH! Tap ODD numbers",
           desc: wantEven ? "Focus on even values" : "Focus on odd values",
-          correct: wantEven ? evenNum.toString() : odd1.toString(),
-          options: [evenNum.toString(), odd1.toString(), odd2.toString(), odd3.toString()].sort(() => Math.random() - 0.5)
+          correct: wantEven ? evenNum.toString() : odds[0],
+          options: [evenNum.toString(), ...odds].sort(() => Math.random() - 0.5)
         };
       } else if (ruleType === 3) {
-        const nums = Array.from({ length: 4 }, () => Math.floor(Math.random() * 90) + 10);
+        const numSet = new Set<number>();
+        while (numSet.size < 4) {
+          numSet.add(Math.floor(Math.random() * 90) + 10);
+        }
+        const nums = Array.from(numSet);
         const maxVal = Math.max(...nums);
         rObj = {
           rule: "Tap the LARGEST number",
@@ -373,7 +379,11 @@ function ChatContent() {
           options: nums.map(n => n.toString()).sort(() => Math.random() - 0.5)
         };
       } else if (ruleType === 4) {
-        const nums = Array.from({ length: 4 }, () => Math.floor(Math.random() * 90) + 10);
+        const numSet = new Set<number>();
+        while (numSet.size < 4) {
+          numSet.add(Math.floor(Math.random() * 90) + 10);
+        }
+        const nums = Array.from(numSet);
         const minVal = Math.min(...nums);
         rObj = {
           rule: "Tap the SMALLEST number",
@@ -383,27 +393,34 @@ function ChatContent() {
         };
       } else if (ruleType === 5) {
         const digitToAvoid = [3, 7, 5, 9][Math.floor(Math.random() * 4)];
-        const bad1 = `${Math.floor(Math.random() * 8) + 1}${digitToAvoid}`;
-        const bad2 = `${digitToAvoid}${Math.floor(Math.random() * 8) + 1}`;
-        const bad3 = `${digitToAvoid}${digitToAvoid}`;
+        const badSet = new Set<string>();
+        while (badSet.size < 3) {
+          const val = Math.random() > 0.5
+            ? `${Math.floor(Math.random() * 8) + 1}${digitToAvoid}`
+            : `${digitToAvoid}${Math.floor(Math.random() * 8) + 1}`;
+          badSet.add(val);
+        }
+        const bads = Array.from(badSet);
         const safe = "24";
         rObj = {
           rule: `Don't tap numbers containing digit ${digitToAvoid}`,
           desc: `Avoid any number with digit ${digitToAvoid}`,
           correct: safe,
-          options: [bad1, bad2, bad3, safe].sort(() => Math.random() - 0.5)
+          options: [...bads, safe].sort(() => Math.random() - 0.5)
         };
       } else if (ruleType === 6) {
         const threshold = (Math.floor(Math.random() * 5) + 3) * 10;
         const highNum = threshold + Math.floor(Math.random() * 20) + 5;
-        const low1 = threshold - Math.floor(Math.random() * 10) - 2;
-        const low2 = threshold - Math.floor(Math.random() * 10) - 5;
-        const low3 = threshold - Math.floor(Math.random() * 10) - 8;
+        const lowSet = new Set<number>();
+        while (lowSet.size < 3) {
+          lowSet.add(threshold - Math.floor(Math.random() * 15) - 1);
+        }
+        const lows = Array.from(lowSet).map(n => n.toString());
         rObj = {
           rule: `Tap numbers > ${threshold}`,
           desc: `Focus on numbers strictly greater than ${threshold}`,
           correct: highNum.toString(),
-          options: [highNum.toString(), low1.toString(), low2.toString(), low3.toString()].sort(() => Math.random() - 0.5)
+          options: [highNum.toString(), ...lows].sort(() => Math.random() - 0.5)
         };
       } else if (ruleType === 7) {
         const shapes = ["🔺 Triangle", "🟦 Square", "🟢 Circle", "⭐ Star"];
@@ -415,16 +432,19 @@ function ChatContent() {
           options: [...shapes].sort(() => Math.random() - 0.5)
         };
       } else if (ruleType === 8) {
-        const base = Math.floor(Math.random() * 8) + 2;
-        const mult = base * (Math.floor(Math.random() * 4) + 2);
-        const wrong1 = mult + 2;
-        const wrong2 = mult - 3;
-        const wrong3 = mult + 5;
+        const base = Math.floor(Math.random() * 6) + 2;
+        const mult = base * (Math.floor(Math.random() * 5) + 2);
+        const wrongSet = new Set<number>();
+        while (wrongSet.size < 3) {
+          const w = mult + Math.floor(Math.random() * 10) - 5;
+          if (w > 0 && w % base !== 0) wrongSet.add(w);
+        }
+        const wrongs = Array.from(wrongSet).map(n => n.toString());
         rObj = {
           rule: `Tap numbers divisible by ${base}`,
           desc: `Select the multiple of ${base}`,
           correct: mult.toString(),
-          options: [mult.toString(), wrong1.toString(), wrong2.toString(), wrong3.toString()].sort(() => Math.random() - 0.5)
+          options: [mult.toString(), ...wrongs].sort(() => Math.random() - 0.5)
         };
       } else {
         const color = COLOR_EMOJIS[Math.floor(Math.random() * COLOR_EMOJIS.length)];
@@ -7929,9 +7949,9 @@ function ChatContent() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2.5">
-                        {ruleSwitchCurrent.options.map((opt: string) => (
+                        {ruleSwitchCurrent.options.map((opt: string, idx: number) => (
                           <button
-                            key={opt}
+                            key={`${opt}-${idx}`}
                             onClick={() => {
                               setRuleSwitchSelected(opt);
                               const isCorrect = opt === ruleSwitchCurrent.correct;
