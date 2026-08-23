@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -56,7 +56,7 @@ import {
   GeminiQuizQuestion
 } from "@/services/ai/gemini";
 
-export default function ChatPage() {
+function ChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -8172,5 +8172,17 @@ export default function ChatPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-full items-center justify-center bg-[#FCF9F5]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#4A2711]/30 border-t-[#4A2711] animate-spin"></div>
+      </div>
+    }>
+      <ChatContent />
+    </Suspense>
   );
 }

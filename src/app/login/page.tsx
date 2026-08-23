@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { isSupabaseConfigured, supabase } from "@/services/supabase";
 import { Sparkles, Mail, Lock, ArrowRight, GraduationCap } from "lucide-react";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -237,5 +237,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex-grow bg-[#FCF9F5] text-gray-900 flex items-center justify-center py-12 px-6">
+        <div className="w-8 h-8 rounded-full border-2 border-[#4A2711]/30 border-t-[#4A2711] animate-spin"></div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

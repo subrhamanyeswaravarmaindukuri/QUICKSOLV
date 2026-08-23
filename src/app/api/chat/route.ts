@@ -6,10 +6,35 @@ import { tryResolveCalculator } from "@/services/ai/calculation";
 
 // Offline fallback templates have been fully removed to ensure 100% dynamic AI-generated responses.
 
+// In-memory rate limiter for server API protection
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+function isRateLimited(clientKey: string, limit = 30, windowMs = 60000): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(clientKey);
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(clientKey, { count: 1, resetTime: now + windowMs });
+    return false;
+  }
+  if (entry.count >= limit) {
+    return true;
+  }
+  entry.count += 1;
+  return false;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { prompt, mode, image, pdf, conversationId, userId, userName, type, topic, subject, difficulty, numQuestions, userGeminiKey, userOpenRouterKey, modelOverride, requestId } = body;
+
+    const rateKey = userId || "anonymous-client";
+    if (isRateLimited(rateKey)) {
+      return NextResponse.json(
+        { error: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please wait a moment before sending another request." },
+        { status: 429 }
+      );
+    }
 
     // Check if it is a quiz generation request
     if (type === "quiz-generate") {
