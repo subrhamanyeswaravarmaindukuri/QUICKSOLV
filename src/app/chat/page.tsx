@@ -363,16 +363,20 @@ function ChatContent() {
       }
     }
 
-    // 2. Real-Time Persistent Daily Streak (+1 per calendar day)
+    // 2. Real-Time Persistent Daily Streak (+1 per calendar day, min 1)
     const todayStr = new Date().toISOString().split("T")[0];
     const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
+    let currentStreakVal = streakCount >= 1 ? streakCount : 1;
+
     if (lastEarned !== todayStr) {
-      const newCount = Math.max((streakCount || 0) + 1, 1);
+      const newCount = currentStreakVal + 1;
       setStreakCount(newCount);
       localStorage.setItem("quicksolv_streak_count", newCount.toString());
       localStorage.setItem("quicksolv_streak_last_date", todayStr);
       setStreakEarnedNewToday(true);
     } else {
+      setStreakCount(currentStreakVal);
+      localStorage.setItem("quicksolv_streak_count", currentStreakVal.toString());
       setStreakEarnedNewToday(false);
     }
 
@@ -404,12 +408,10 @@ function ChatContent() {
       }
 
       const savedStreak = localStorage.getItem("quicksolv_streak_count");
-      if (savedStreak !== null && parseInt(savedStreak, 10) > 0) {
-        setStreakCount(parseInt(savedStreak, 10));
-      } else {
-        setStreakCount(1);
-        localStorage.setItem("quicksolv_streak_count", "1");
-      }
+      const numStreak = savedStreak !== null ? parseInt(savedStreak, 10) : 1;
+      const validStreak = isNaN(numStreak) || numStreak < 1 ? 1 : numStreak;
+      setStreakCount(validStreak);
+      localStorage.setItem("quicksolv_streak_count", validStreak.toString());
     } catch {}
   }, []);
 
@@ -7910,12 +7912,20 @@ function ChatContent() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setStreakModalView("categories")}
-                    className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition shadow-sm text-center flex items-center justify-center gap-1 text-[11px]"
-                  >
-                    ⚡ Start Daily Streak Quiz
-                  </button>
+                  <div className="flex gap-2 font-bold text-xs pt-1">
+                    <button
+                      onClick={() => setStreakModalView("categories")}
+                      className="flex-1 py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition shadow-sm text-center flex items-center justify-center gap-1 text-[11px]"
+                    >
+                      ⚡ Start Daily Streak Game
+                    </button>
+                    <button
+                      onClick={() => setStreakModalView("leaderboard")}
+                      className="flex-1 py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 font-bold rounded-xl transition text-center flex items-center justify-center gap-1 text-[11px]"
+                    >
+                      📊 View Daily Results
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -7951,12 +7961,20 @@ function ChatContent() {
                     ))}
                   </div>
 
-                  <button
-                    onClick={() => setStreakModalView("rewards")}
-                    className="w-full py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-center text-xs transition cursor-pointer"
-                  >
-                    Back to Stats
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStreakModalView("leaderboard")}
+                      className="flex-1 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold rounded-xl text-center text-xs transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      📊 View Daily Results Board
+                    </button>
+                    <button
+                      onClick={() => setStreakModalView("rewards")}
+                      className="flex-1 py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-center text-xs transition cursor-pointer"
+                    >
+                      Back to Stats
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -8032,12 +8050,20 @@ function ChatContent() {
                     })}
                   </div>
 
-                  <button
-                    onClick={() => setStreakModalView("categories")}
-                    className="w-full py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-center text-xs transition cursor-pointer"
-                  >
-                    Back to Games List
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStreakModalView("leaderboard")}
+                      className="flex-1 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold rounded-xl text-center text-xs transition cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      📊 Daily Results Board
+                    </button>
+                    <button
+                      onClick={() => setStreakModalView("categories")}
+                      className="flex-1 py-2 border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold rounded-xl text-center text-xs transition cursor-pointer"
+                    >
+                      Back to Games List
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -8052,7 +8078,7 @@ function ChatContent() {
                       {selectedBrainGame === "sequence_memory" && `🧠 Sequence Memory (Lvl ${selectedGameLevel})`}
                       {selectedBrainGame === "word_scramble" && `💡 Word Unscramble (Lvl ${selectedGameLevel})`}
                       {selectedBrainGame === "dual_task" && `🎯 Dual Task (Lvl ${selectedGameLevel})`}
-                      <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-mono text-[9px]">
+                      <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-mono text-[9px] font-bold animate-pulse">
                         ⏱️ {gameTimerSeconds}s
                       </span>
                     </span>
@@ -8368,6 +8394,107 @@ function ChatContent() {
                       className="flex-1 py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl shadow-sm transition cursor-pointer text-xs"
                     >
                       Done
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* View 6: leaderboard (Dedicated Daily Results & Speed Times Board) */}
+              {streakModalView === "leaderboard" && (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <h4 className="font-bold text-gray-900 text-xs flex items-center justify-center gap-1.5 uppercase font-serif">
+                      <span>📊</span> Today's Daily Live Results Board
+                    </h4>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Real-time player rankings sorted by fastest completion speed!
+                    </p>
+                  </div>
+
+                  {/* Game Selector Tabs */}
+                  <div className="grid grid-cols-4 gap-1 bg-gray-100 p-1 rounded-xl text-[9.5px] font-bold">
+                    {[
+                      { id: "rule_switch", label: "⚡ Rule Switch" },
+                      { id: "sequence_memory", label: "🧠 Sequence" },
+                      { id: "word_scramble", label: "💡 Unscramble" },
+                      { id: "dual_task", label: "🎯 Dual Task" }
+                    ].map(g => (
+                      <button
+                        key={g.id}
+                        onClick={() => setSelectedBrainGame(g.id)}
+                        className={`py-1.5 rounded-lg transition ${
+                          selectedBrainGame === g.id
+                            ? "bg-[#4A2711] text-white shadow-xs"
+                            : "text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Leaderboard List */}
+                  <div className="bg-white border border-gray-200/80 rounded-2xl p-3.5 space-y-2 text-left shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                      <span className="text-[10px] font-extrabold text-gray-900 uppercase font-serif flex items-center gap-1">
+                        <span>🏆</span> Solvers Today ({getDailyLeaderboard(selectedBrainGame).length} Members)
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-400">Fastest Solvers</span>
+                    </div>
+
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                      {getDailyLeaderboard(selectedBrainGame).map((player: any, rankIdx: number) => {
+                        const rank = rankIdx + 1;
+                        let badgeStyle = "bg-gray-50 border-gray-200 text-gray-700";
+                        let medal = `#${rank}`;
+
+                        if (rank === 1) {
+                          badgeStyle = "bg-amber-100/90 border-amber-300 text-amber-950 font-bold shadow-2xs";
+                          medal = "🥇 1st";
+                        } else if (rank === 2) {
+                          badgeStyle = "bg-slate-100/90 border-slate-300 text-slate-900 font-bold shadow-2xs";
+                          medal = "🥈 2nd";
+                        } else if (rank === 3) {
+                          badgeStyle = "bg-orange-100/80 border-orange-300 text-orange-950 font-bold shadow-2xs";
+                          medal = "🥉 3rd";
+                        }
+
+                        return (
+                          <div
+                            key={rankIdx}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${badgeStyle} ${
+                              player.isCurrentUser ? "ring-2 ring-[#4A2711]" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs shrink-0 font-bold">{medal}</span>
+                              <span className="text-base shrink-0">{player.avatar}</span>
+                              <span className="font-bold truncate text-[11px]">
+                                {player.name} {player.isCurrentUser ? "(You)" : ""}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2.5 shrink-0 text-[10px] font-mono font-bold">
+                              <span className="bg-amber-200/60 px-2 py-0.5 rounded-full text-amber-950">⏱️ {player.timeSec}s</span>
+                              <span className="text-emerald-700">{player.score} pts</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStreakModalView("categories")}
+                      className="flex-1 py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl text-center text-xs transition cursor-pointer"
+                    >
+                      🎮 Play Brain Games Now
+                    </button>
+                    <button
+                      onClick={() => setStreakModalView("rewards")}
+                      className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl text-center text-xs transition cursor-pointer"
+                    >
+                      Back to Stats
                     </button>
                   </div>
                 </div>
