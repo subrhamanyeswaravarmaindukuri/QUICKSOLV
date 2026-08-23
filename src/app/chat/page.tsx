@@ -272,16 +272,196 @@ function ChatContent() {
   const [streakQuizIsLoading, setStreakQuizIsLoading] = useState(false);
   const [streakEarnedNewToday, setStreakEarnedNewToday] = useState(false);
 
-  // Brain Mini Games State for Daily Streak Offer
-  const [selectedBrainGame, setSelectedBrainGame] = useState<string>("memory_matrix");
+  // Brain Mini Games State for Daily Streak Offer & Mind Training
+  const [selectedBrainGame, setSelectedBrainGame] = useState<string>("rule_switch");
   const [brainGameScore, setBrainGameScore] = useState<number>(0);
   const [brainGameRound, setBrainGameRound] = useState<number>(0);
-  const [memoryPattern, setMemoryPattern] = useState<number[]>([]);
-  const [userMemorySelected, setUserMemorySelected] = useState<number[]>([]);
-  const [memoryPhase, setMemoryPhase] = useState<"preview" | "recall" | "feedback">("preview");
-  const [mathSelectedAns, setMathSelectedAns] = useState<number | null>(null);
+
+  // Dynamic Game Session States
+  const [ruleSwitchCurrent, setRuleSwitchCurrent] = useState<any>(null);
+  const [ruleSwitchSelected, setRuleSwitchSelected] = useState<string | null>(null);
+
+  const [sequenceTarget, setSequenceTarget] = useState<string[]>([]);
+  const [sequenceUser, setSequenceUser] = useState<string[]>([]);
+  const [sequencePhase, setSequencePhase] = useState<"preview" | "recall" | "result">("preview");
+  const [activeSeqIndex, setActiveSeqIndex] = useState<number | null>(null);
+
+  const [wordScrambleCurrent, setWordScrambleCurrent] = useState<any>(null);
   const [unscrambleInput, setUnscrambleInput] = useState<string>("");
-  const [patternSelectedAns, setPatternSelectedAns] = useState<string | null>(null);
+
+  const [dualTaskCurrent, setDualTaskCurrent] = useState<any>(null);
+  const [dualTaskUserSelected, setDualTaskUserSelected] = useState<number[]>([]);
+
+  // Dynamic Procedural Brain Game Generators (100% Unique per attempt for every user)
+  const startBrainGameRound = (gameId: string, round: number) => {
+    if (gameId === "rule_switch") {
+      setRuleSwitchSelected(null);
+      const ruleBank = [
+        {
+          rule: "Tap RED 🔴",
+          desc: "Current Rule: Select the red color option",
+          correct: "🔴",
+          options: ["🔴", "🔵", "🟢", "🟡"].sort(() => Math.random() - 0.5)
+        },
+        {
+          rule: "Tap BLUE 🔵",
+          desc: "Current Rule: Select the blue color option",
+          correct: "🔵",
+          options: ["🔴", "🔵", "🟢", "🟡"].sort(() => Math.random() - 0.5)
+        },
+        {
+          rule: "Tap anything NOT BLUE 🚫🔵",
+          desc: "Inverse Rule: Tap any color except blue",
+          correct: Math.random() > 0.5 ? "🔴" : "🟢",
+          options: ["🔵", "🔴", "🟢", "🟡"].sort(() => Math.random() - 0.5)
+        },
+        {
+          rule: "⚡ RULE SWITCH! Tap EVEN numbers",
+          desc: "Rule changed! Focus on even values",
+          correct: "14",
+          options: ["7", "14", "21", "33"].sort(() => Math.random() - 0.5)
+        },
+        {
+          rule: "Tap the LARGEST number",
+          desc: "Compare values and select the highest number",
+          correct: "89",
+          options: ["12", "89", "45", "67"].sort(() => Math.random() - 0.5)
+        },
+        {
+          rule: "Don't tap numbers containing 3",
+          desc: "Avoid any number that has digit 3",
+          correct: "24",
+          options: ["13", "33", "24", "39"].sort(() => Math.random() - 0.5)
+        }
+      ];
+      const rObj = ruleBank[round % ruleBank.length];
+      setRuleSwitchCurrent(rObj);
+    } else if (gameId === "sequence_memory") {
+      setSequenceUser([]);
+      setSequencePhase("preview");
+      setActiveSeqIndex(null);
+      const seqItems = ["🟦", "🟢", "🔴", "🟡", "🟣", "🟧"];
+      const targetLen = round + 2; // Round 0: 2, Round 1: 3, Round 2: 4, Round 3: 5
+      const generatedSeq: string[] = [];
+      for (let i = 0; i < targetLen; i++) {
+        generatedSeq.push(seqItems[Math.floor(Math.random() * seqItems.length)]);
+      }
+      setSequenceTarget(generatedSeq);
+
+      // Play sequence preview animation
+      generatedSeq.forEach((_, idx) => {
+        setTimeout(() => {
+          setActiveSeqIndex(idx);
+        }, idx * 600);
+      });
+
+      setTimeout(() => {
+        setActiveSeqIndex(null);
+        setSequencePhase("recall");
+      }, targetLen * 600 + 400);
+    } else if (gameId === "word_scramble") {
+      setUnscrambleInput("");
+      const ACADEMIC_WORDS_BANK = [
+        { word: "ALGORITHM", clue: "Step-by-step procedure for solving problems" },
+        { word: "SYNTAX", clue: "Structure and rules of programming language code" },
+        { word: "EQUATION", clue: "Mathematical statement showing two expressions are equal" },
+        { word: "PHOTOSYNTHESIS", clue: "Process plants use to convert light into energy" },
+        { word: "RECURSION", clue: "Function calling itself to solve smaller instances" },
+        { word: "DERIVATIVE", clue: "Rate of change of a mathematical function" },
+        { word: "HYPOTHESIS", clue: "Proposed explanation made on limited evidence" },
+        { word: "QUANTUM", clue: "Minimum quantity of energy in physics" },
+        { word: "VARIABLES", clue: "Symbols representing changeable data values" },
+        { word: "CELLULAR", clue: "Relating to or consisting of living cells" },
+        { word: "DATABASE", clue: "Organized collection of structured information" },
+        { word: "POLYNOMIAL", clue: "Expression consisting of variables and coefficients" },
+        { word: "MOMENTUM", clue: "Quantity of motion of a moving body" },
+        { word: "ENZYME", clue: "Biological catalyst that speeds up reactions" },
+        { word: "GENETICS", clue: "Study of heredity and variation of organisms" },
+        { word: "CATALYST", clue: "Substance that increases rate of chemical reaction" },
+        { word: "SOLUTION", clue: "Liquid mixture in which minor component is dissolved" },
+        { word: "VECTORS", clue: "Quantities having direction as well as magnitude" },
+        { word: "ECOLOGY", clue: "Branch of biology dealing with organisms & environment" },
+        { word: "ELECTRON", clue: "Subatomic particle with negative electricity" },
+        { word: "THEOREM", clue: "Statement proven based on previously established statements" },
+        { word: "SPECTRUM", clue: "Band of colors produced by light separation" },
+        { word: "NEWTON", clue: "Unit of force named after famous physicist" },
+        { word: "GRAPH", clue: "Diagram showing relation between variable quantities" },
+        { word: "MATRICES", clue: "Rectangular arrays of numbers arranged in rows & columns" },
+        { word: "INTEGRAL", clue: "Calculates total area under a mathematical curve" },
+        { word: "FRICTION", clue: "Resistance encountered moving over a surface" },
+        { word: "KINETIC", clue: "Relating to or resulting from motion" },
+        { word: "BIOLOGY", clue: "Scientific study of life and living organisms" },
+        { word: "CHEMISTRY", clue: "Science dealing with substances and reactions" },
+        { word: "GRAVITY", clue: "Force attracting bodies towards the Earth's center" },
+        { word: "NEURON", clue: "Brain cell processing and transmitting information" },
+        { word: "PROBABILITY", clue: "Extent to which an event is likely to occur" },
+        { word: "OSMOSIS", clue: "Molecules passing through semipermeable membrane" },
+        { word: "COMPILER", clue: "Translates code into executable machine instructions" },
+        { word: "POINTER", clue: "Variable storing memory address of another value" },
+        { word: "CIRCUIT", clue: "Closed path through which electric current flows" },
+        { word: "DYNAMICS", clue: "Forces that cause movement in physical systems" },
+        { word: "METABOLISM", clue: "Chemical processes occurring within a living organism" },
+        { word: "LOGARITHM", clue: "Power to which a number must be raised to get another" }
+      ];
+      const randomIdx = Math.floor(Math.random() * ACADEMIC_WORDS_BANK.length);
+      const wObj = ACADEMIC_WORDS_BANK[randomIdx];
+      const scrambled = wObj.word.split('').sort(() => Math.random() - 0.5).join(' ');
+      setWordScrambleCurrent({ word: wObj.word, clue: wObj.clue, scrambled });
+    } else if (gameId === "dual_task") {
+      setDualTaskUserSelected([]);
+      const dualRounds = [
+        {
+          rule1: "Rule 1: Tap EVEN numbers",
+          rule2: "Rule 2: Never tap numbers containing 3",
+          items: [
+            { id: 0, val: "2", isCorrect: true },
+            { id: 1, val: "7", isCorrect: false },
+            { id: 2, val: "6", isCorrect: true },
+            { id: 3, val: "13", isCorrect: false },
+            { id: 4, val: "8", isCorrect: true },
+            { id: 5, val: "4", isCorrect: true }
+          ]
+        },
+        {
+          rule1: "Rule 1: Tap GREEN items 🟢",
+          rule2: "Rule 2: Ignore CIRCLES",
+          items: [
+            { id: 0, val: "🟢 Square", isCorrect: true },
+            { id: 1, val: "🔴 Square", isCorrect: false },
+            { id: 2, val: "🟢 Circle", isCorrect: false },
+            { id: 3, val: "🟢 Triangle", isCorrect: true },
+            { id: 4, val: "🔵 Triangle", isCorrect: false },
+            { id: 5, val: "🟢 Star", isCorrect: true }
+          ]
+        },
+        {
+          rule1: "Rule 1: Tap numbers > 15",
+          rule2: "Rule 2: Ignore EVEN numbers",
+          items: [
+            { id: 0, val: "19", isCorrect: true },
+            { id: 1, val: "24", isCorrect: false },
+            { id: 2, val: "27", isCorrect: true },
+            { id: 3, val: "12", isCorrect: false },
+            { id: 4, val: "31", isCorrect: true },
+            { id: 5, val: "8", isCorrect: false }
+          ]
+        },
+        {
+          rule1: "Rule 1: Tap BLUE symbols 🔵",
+          rule2: "Rule 2: Never tap numbers containing 5",
+          items: [
+            { id: 0, val: "🔵 12", isCorrect: true },
+            { id: 1, val: "🔴 14", isCorrect: false },
+            { id: 2, val: "🔵 25", isCorrect: false },
+            { id: 3, val: "🔵 48", isCorrect: true },
+            { id: 4, val: "🟢 35", isCorrect: false },
+            { id: 5, val: "🔵 91", isCorrect: true }
+          ]
+        }
+      ];
+      setDualTaskCurrent(dualRounds[round % dualRounds.length]);
+    }
+  };
 
   // Study Plan States
   const [activeStudyPlan, setActiveStudyPlan] = useState<any>(null);
@@ -7526,10 +7706,10 @@ function ChatContent() {
 
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: "memory_matrix", name: "Memory Matrix", desc: "Spatial Working Memory", emoji: "🧩", bg: "bg-blue-50/60 hover:bg-blue-100/60 border-blue-200 text-blue-950" },
-                      { id: "speed_math", name: "Speed Math", desc: "Rapid Mental Math & Logic", emoji: "🧮", bg: "bg-emerald-50/60 hover:bg-emerald-100/60 border-emerald-200 text-emerald-950" },
+                      { id: "rule_switch", name: "Rule Switch", desc: "Mental Flexibility & Rapid Adaptability", emoji: "⚡", bg: "bg-amber-50/60 hover:bg-amber-100/60 border-amber-200 text-amber-950" },
+                      { id: "sequence_memory", name: "Sequence Memory", desc: "Spatial & Pattern Working Memory", emoji: "🧠", bg: "bg-blue-50/60 hover:bg-blue-100/60 border-blue-200 text-blue-950" },
                       { id: "word_scramble", name: "Word Unscramble", desc: "Vocabulary & Pattern Recognition", emoji: "💡", bg: "bg-purple-50/60 hover:bg-purple-100/60 border-purple-200 text-purple-950" },
-                      { id: "pattern_agility", name: "Pattern Agility", desc: "Visual Agility & Sequence Reasoning", emoji: "⚡", bg: "bg-amber-50/60 hover:bg-amber-100/60 border-amber-200 text-amber-950" }
+                      { id: "dual_task", name: "Dual Task", desc: "Multi-Rule Attention & Focus", emoji: "🎯", bg: "bg-emerald-50/60 hover:bg-emerald-100/60 border-emerald-200 text-emerald-950" }
                     ].map(game => (
                       <button
                         key={game.id}
@@ -7538,20 +7718,7 @@ function ChatContent() {
                           setBrainGameScore(0);
                           setBrainGameRound(0);
                           setStreakModalView("playing");
-                          if (game.id === "memory_matrix") {
-                            const setOfIdxs = new Set<number>();
-                            while (setOfIdxs.size < 3) setOfIdxs.add(Math.floor(Math.random() * 9));
-                            setMemoryPattern(Array.from(setOfIdxs));
-                            setUserMemorySelected([]);
-                            setMemoryPhase("preview");
-                            setTimeout(() => setMemoryPhase("recall"), 1500);
-                          } else if (game.id === "speed_math") {
-                            setMathSelectedAns(null);
-                          } else if (game.id === "word_scramble") {
-                            setUnscrambleInput("");
-                          } else if (game.id === "pattern_agility") {
-                            setPatternSelectedAns(null);
-                          }
+                          startBrainGameRound(game.id, 0);
                         }}
                         className={`p-3.5 border rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer shadow-2xs ${game.bg}`}
                       >
@@ -7577,127 +7744,122 @@ function ChatContent() {
                   
                   {/* Game Header Progress */}
                   <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 border-b border-gray-100 pb-2">
-                    <span className="uppercase text-[#4A2711]">
-                      {selectedBrainGame === "memory_matrix" && "🧩 Memory Matrix"}
-                      {selectedBrainGame === "speed_math" && "🧮 Speed Math Matrix"}
+                    <span className="uppercase text-[#4A2711] flex items-center gap-1">
+                      {selectedBrainGame === "rule_switch" && "⚡ Rule Switch"}
+                      {selectedBrainGame === "sequence_memory" && "🧠 Sequence Memory"}
                       {selectedBrainGame === "word_scramble" && "💡 Word Unscramble"}
-                      {selectedBrainGame === "pattern_agility" && "⚡ Pattern Agility"}
+                      {selectedBrainGame === "dual_task" && "🎯 Dual Task"}
                     </span>
                     <span>ROUND {brainGameRound + 1} OF {selectedBrainGame === "word_scramble" ? 3 : 4}</span>
                   </div>
 
-                  {/* GAME 1: MEMORY MATRIX */}
-                  {selectedBrainGame === "memory_matrix" && (
-                    <div className="space-y-4 text-center py-1">
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-gray-900 text-xs">
-                          {memoryPhase === "preview" ? "👀 Memorize the highlighted tiles!" : "👉 Tap the tiles you memorized!"}
-                        </h4>
-                        <p className="text-[9.5px] text-gray-400">
-                          {memoryPhase === "preview" ? "Tiles will hide in 1.5 seconds..." : `Select ${memoryPattern.length} tiles`}
-                        </p>
+                  {/* GAME 1: RULE SWITCH */}
+                  {selectedBrainGame === "rule_switch" && ruleSwitchCurrent && (
+                    <div className="space-y-4 py-2">
+                      <div className="bg-[#FAF6F0] border border-[#EADDC9] p-4 rounded-2xl text-center space-y-1.5">
+                        <span className="text-[9px] font-extrabold text-[#4A2711] uppercase tracking-wider">⚡ Dynamic Rule</span>
+                        <h3 className="text-xl font-black text-gray-900 font-serif">{ruleSwitchCurrent.rule}</h3>
+                        <p className="text-[10px] text-gray-500">{ruleSwitchCurrent.desc}</p>
                       </div>
 
-                      {/* 3x3 Tile Grid */}
-                      <div className="grid grid-cols-3 gap-2.5 max-w-[210px] mx-auto my-3">
-                        {Array.from({ length: 9 }).map((_, idx) => {
-                          const isTarget = memoryPattern.includes(idx);
-                          const isUserSel = userMemorySelected.includes(idx);
-                          let tileStyle = "bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-400";
-                          
-                          if (memoryPhase === "preview" && isTarget) {
-                            tileStyle = "bg-amber-400 border-amber-500 text-amber-950 font-bold scale-105 shadow-md animate-pulse";
-                          } else if (memoryPhase === "recall" && isUserSel) {
-                            tileStyle = "bg-[#4A2711] border-[#4A2711] text-white font-bold scale-95 shadow";
-                          }
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {ruleSwitchCurrent.options.map((opt: string) => (
+                          <button
+                            key={opt}
+                            onClick={() => {
+                              setRuleSwitchSelected(opt);
+                              const isCorrect = opt === ruleSwitchCurrent.correct;
+                              const addScore = isCorrect ? 25 : 0;
+                              const newTotal = brainGameScore + addScore;
 
-                          return (
-                            <button
-                              key={idx}
-                              disabled={memoryPhase !== "recall"}
-                              onClick={() => {
-                                if (userMemorySelected.includes(idx)) return;
-                                const nextSel = [...userMemorySelected, idx];
-                                setUserMemorySelected(nextSel);
-
-                                if (nextSel.length === memoryPattern.length) {
-                                  // Check correctness
-                                  const isCorrect = memoryPattern.every(val => nextSel.includes(val));
-                                  const addScore = isCorrect ? 25 : 0;
-                                  const newTotal = brainGameScore + addScore;
-
-                                  if (brainGameRound < 3) {
-                                    const nextRound = brainGameRound + 1;
-                                    setBrainGameScore(newTotal);
-                                    setBrainGameRound(nextRound);
-                                    // init next round pattern
-                                    const count = Math.min(3 + nextRound, 6);
-                                    const setOfIdxs = new Set<number>();
-                                    while (setOfIdxs.size < count) setOfIdxs.add(Math.floor(Math.random() * 9));
-                                    setMemoryPattern(Array.from(setOfIdxs));
-                                    setUserMemorySelected([]);
-                                    setMemoryPhase("preview");
-                                    setTimeout(() => setMemoryPhase("recall"), 1500);
+                              setTimeout(() => {
+                                if (brainGameRound < 3) {
+                                  setBrainGameScore(newTotal);
+                                  const nextR = brainGameRound + 1;
+                                  setBrainGameRound(nextR);
+                                  startBrainGameRound("rule_switch", nextR);
+                                } else {
+                                  setBrainGameScore(newTotal);
+                                  const todayStr = new Date().toISOString().split("T")[0];
+                                  const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
+                                  if (lastEarned !== todayStr) {
+                                    const newCount = (streakCount || 0) + 1;
+                                    setStreakCount(newCount);
+                                    localStorage.setItem("quicksolv_streak_count", newCount.toString());
+                                    localStorage.setItem("quicksolv_streak_last_date", todayStr);
+                                    setStreakEarnedNewToday(true);
                                   } else {
-                                    // Finish game
-                                    setBrainGameScore(newTotal);
-                                    const todayStr = new Date().toISOString().split("T")[0];
-                                    const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                                    if (lastEarned !== todayStr) {
-                                      const newCount = (streakCount || 0) + 1;
-                                      setStreakCount(newCount);
-                                      localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                                      localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                                      setStreakEarnedNewToday(true);
-                                    } else {
-                                      setStreakEarnedNewToday(false);
-                                    }
-                                    setStreakModalView("score");
+                                    setStreakEarnedNewToday(false);
                                   }
+                                  setStreakModalView("score");
                                 }
-                              }}
-                              className={`w-16 h-16 rounded-2xl border flex items-center justify-center text-lg transition duration-150 cursor-pointer ${tileStyle}`}
-                            >
-                              {memoryPhase === "preview" && isTarget ? "✨" : isUserSel ? "✓" : ""}
-                            </button>
-                          );
-                        })}
+                              }, 300);
+                            }}
+                            className={`p-4 rounded-2xl border text-center font-black text-base transition cursor-pointer ${
+                              ruleSwitchSelected === opt
+                                ? opt === ruleSwitchCurrent.correct
+                                  ? "bg-emerald-500 text-white border-emerald-600"
+                                  : "bg-rose-500 text-white border-rose-600"
+                                : "bg-white hover:bg-gray-50 border-gray-200 text-gray-800"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {/* GAME 2: SPEED MATH */}
-                  {selectedBrainGame === "speed_math" && (() => {
-                    const SPEED_MATH_ROUNDS = [
-                      { question: "28 + 47 = ?", options: [75, 65, 73, 85], answer: 75 },
-                      { question: "9 × 7 - 15 = ?", options: [48, 58, 42, 53], answer: 48 },
-                      { question: "96 ÷ 8 + 17 = ?", options: [29, 27, 31, 25], answer: 29 },
-                      { question: "14 × 5 + 30 = ?", options: [100, 95, 105, 90], answer: 100 },
-                    ];
-                    const q = SPEED_MATH_ROUNDS[brainGameRound];
+                  {/* GAME 2: SEQUENCE MEMORY */}
+                  {selectedBrainGame === "sequence_memory" && (
+                    <div className="space-y-4 text-center py-1">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-gray-900 text-xs">
+                          {sequencePhase === "preview" ? "👀 Memorize the item sequence!" : "👉 Tap sequence in exact order!"}
+                        </h4>
+                        <p className="text-[9.5px] text-gray-400">
+                          {sequencePhase === "preview" ? "Watch highlights carefully..." : `Tapped: ${sequenceUser.length} / ${sequenceTarget.length}`}
+                        </p>
+                      </div>
 
-                    return (
-                      <div className="space-y-4 py-2">
-                        <div className="bg-[#FAF6F0] border border-[#EADDC9] p-4 rounded-2xl text-center space-y-1">
-                          <span className="text-[9px] font-bold text-[#4A2711] uppercase tracking-wider">Solve Fast</span>
-                          <h3 className="text-2xl font-black text-gray-900 font-mono">{q.question}</h3>
-                        </div>
+                      {/* Display Target Sequence / Interactive Board */}
+                      <div className="flex justify-center gap-2 py-3 min-h-[60px]">
+                        {sequenceTarget.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className={`w-12 h-12 rounded-2xl border flex items-center justify-center text-xl transition duration-300 ${
+                              activeSeqIndex === idx
+                                ? "bg-amber-400 border-amber-500 scale-110 shadow-lg animate-bounce"
+                                : sequencePhase === "recall"
+                                ? "bg-gray-100 border-gray-200 text-transparent"
+                                : "bg-gray-50 border-gray-200 text-gray-400"
+                            }`}
+                          >
+                            {activeSeqIndex === idx ? item : sequencePhase === "preview" ? item : "❓"}
+                          </div>
+                        ))}
+                      </div>
 
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {q.options.map(opt => (
+                      {/* Recall Buttons */}
+                      {sequencePhase === "recall" && (
+                        <div className="grid grid-cols-3 gap-2 max-w-[220px] mx-auto">
+                          {["🟦", "🟢", "🔴", "🟡", "🟣", "🟧"].map((symbol) => (
                             <button
-                              key={opt}
+                              key={symbol}
                               onClick={() => {
-                                setMathSelectedAns(opt);
-                                const isCorrect = opt === q.answer;
-                                const addScore = isCorrect ? 25 : 0;
-                                const newTotal = brainGameScore + addScore;
+                                const nextUserSeq = [...sequenceUser, symbol];
+                                setSequenceUser(nextUserSeq);
 
-                                setTimeout(() => {
+                                if (nextUserSeq.length === sequenceTarget.length) {
+                                  const isCorrect = sequenceTarget.every((val, i) => val === nextUserSeq[i]);
+                                  const addScore = isCorrect ? 25 : 10;
+                                  const newTotal = brainGameScore + addScore;
+
                                   if (brainGameRound < 3) {
                                     setBrainGameScore(newTotal);
-                                    setBrainGameRound(prev => prev + 1);
-                                    setMathSelectedAns(null);
+                                    const nextR = brainGameRound + 1;
+                                    setBrainGameRound(nextR);
+                                    startBrainGameRound("sequence_memory", nextR);
                                   } else {
                                     setBrainGameScore(newTotal);
                                     const todayStr = new Date().toISOString().split("T")[0];
@@ -7713,149 +7875,141 @@ function ChatContent() {
                                     }
                                     setStreakModalView("score");
                                   }
-                                }, 300);
+                                }
                               }}
-                              className={`p-3.5 rounded-2xl border text-center font-bold text-sm transition cursor-pointer ${
-                                mathSelectedAns === opt
-                                  ? opt === q.answer
-                                    ? "bg-emerald-500 text-white border-emerald-600"
-                                    : "bg-rose-500 text-white border-rose-600"
-                                  : "bg-white hover:bg-gray-50 border-gray-200 text-gray-800"
-                              }`}
+                              className="w-16 h-12 rounded-xl bg-white border border-gray-200 hover:bg-amber-50/50 hover:border-amber-300 text-xl flex items-center justify-center transition shadow-2xs cursor-pointer active:scale-95"
                             >
-                              {opt}
+                              {symbol}
                             </button>
                           ))}
                         </div>
-                      </div>
-                    );
-                  })()}
+                      )}
+                    </div>
+                  )}
 
                   {/* GAME 3: WORD UNSCRAMBLE */}
-                  {selectedBrainGame === "word_scramble" && (() => {
-                    const WORD_ROUNDS = [
-                      { word: "LOGIC", scrambled: "C I G O L", clue: "Sound reasoning & rational thinking process" },
-                      { word: "NEURON", scrambled: "R O N E U N", clue: "Brain cell that processes and transmits signals" },
-                      { word: "ALGORITHM", scrambled: "T H I M R O G L A", clue: "Step-by-step procedure for solving problems" },
-                    ];
-                    const wObj = WORD_ROUNDS[brainGameRound];
+                  {selectedBrainGame === "word_scramble" && wordScrambleCurrent && (
+                    <div className="space-y-4 py-2">
+                      <div className="bg-[#FAF6F0] border border-[#EADDC9] p-4 rounded-2xl text-center space-y-1.5">
+                        <span className="text-[9px] font-bold text-[#4A2711] uppercase tracking-wider">Unscramble the Concept</span>
+                        <h3 className="text-xl font-black text-[#4A2711] tracking-widest font-mono">{wordScrambleCurrent.scrambled}</h3>
+                        <p className="text-[10px] text-gray-500 italic pr-1">💡 Hint: {wordScrambleCurrent.clue}</p>
+                      </div>
 
-                    return (
-                      <div className="space-y-4 py-2">
-                        <div className="bg-[#FAF6F0] border border-[#EADDC9] p-4 rounded-2xl text-center space-y-1.5">
-                          <span className="text-[9px] font-bold text-[#4A2711] uppercase tracking-wider">Unscramble the Concept</span>
-                          <h3 className="text-xl font-black text-[#4A2711] tracking-widest font-mono">{wObj.scrambled}</h3>
-                          <p className="text-[10px] text-gray-500 italic pr-1">💡 Hint: {wObj.clue}</p>
-                        </div>
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={unscrambleInput}
+                          onChange={(e) => setUnscrambleInput(e.target.value.toUpperCase())}
+                          placeholder="Type unscrambled word..."
+                          className="w-full p-3 bg-white border border-gray-200 rounded-xl text-center font-bold uppercase tracking-wider text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2711]"
+                        />
+                        
+                        <button
+                          onClick={() => {
+                            const isCorrect = unscrambleInput.trim().toUpperCase() === wordScrambleCurrent.word;
+                            const addScore = isCorrect ? 35 : 0;
+                            const newTotal = brainGameScore + addScore;
 
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            value={unscrambleInput}
-                            onChange={(e) => setUnscrambleInput(e.target.value.toUpperCase())}
-                            placeholder="Type unscrambled word..."
-                            className="w-full p-3 bg-white border border-gray-200 rounded-xl text-center font-bold uppercase tracking-wider text-sm focus:outline-none focus:ring-2 focus:ring-[#4A2711]"
-                          />
-                          
-                          <button
-                            onClick={() => {
-                              const isCorrect = unscrambleInput.trim().toUpperCase() === wObj.word;
-                              const addScore = isCorrect ? 35 : 0;
-                              const newTotal = brainGameScore + addScore;
-
-                              if (brainGameRound < 2) {
-                                setBrainGameScore(newTotal);
-                                setBrainGameRound(prev => prev + 1);
-                                setUnscrambleInput("");
+                            if (brainGameRound < 2) {
+                              setBrainGameScore(newTotal);
+                              const nextR = brainGameRound + 1;
+                              setBrainGameRound(nextR);
+                              startBrainGameRound("word_scramble", nextR);
+                            } else {
+                              setBrainGameScore(newTotal);
+                              const todayStr = new Date().toISOString().split("T")[0];
+                              const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
+                              if (lastEarned !== todayStr) {
+                                const newCount = (streakCount || 0) + 1;
+                                setStreakCount(newCount);
+                                localStorage.setItem("quicksolv_streak_count", newCount.toString());
+                                localStorage.setItem("quicksolv_streak_last_date", todayStr);
+                                setStreakEarnedNewToday(true);
                               } else {
-                                setBrainGameScore(newTotal);
-                                const todayStr = new Date().toISOString().split("T")[0];
-                                const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                                if (lastEarned !== todayStr) {
-                                  const newCount = (streakCount || 0) + 1;
-                                  setStreakCount(newCount);
-                                  localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                                  localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                                  setStreakEarnedNewToday(true);
-                                } else {
-                                  setStreakEarnedNewToday(false);
-                                }
-                                setStreakModalView("score");
+                                setStreakEarnedNewToday(false);
                               }
-                            }}
-                            className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition cursor-pointer shadow-sm text-xs"
-                          >
-                            Submit Answer
-                          </button>
+                              setStreakModalView("score");
+                            }
+                          }}
+                          className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition cursor-pointer shadow-sm text-xs"
+                        >
+                          Submit Answer
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GAME 4: DUAL TASK */}
+                  {selectedBrainGame === "dual_task" && dualTaskCurrent && (
+                    <div className="space-y-4 py-2">
+                      <div className="bg-[#FAF6F0] border border-[#EADDC9] p-4 rounded-2xl text-center space-y-1">
+                        <span className="text-[9px] font-bold text-[#4A2711] uppercase tracking-wider">🎯 Dual Condition Task</span>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-gray-900">{dualTaskCurrent.rule1}</p>
+                          <p className="text-xs font-bold text-amber-800">{dualTaskCurrent.rule2}</p>
                         </div>
                       </div>
-                    );
-                  })()}
 
-                  {/* GAME 4: PATTERN AGILITY */}
-                  {selectedBrainGame === "pattern_agility" && (() => {
-                    const PATTERN_ROUNDS = [
-                      { sequence: "4,  8,  16,  32,  [ ? ]", options: ["48", "64", "56", "72"], answer: "64", explanation: "Multiplied by 2 each step!" },
-                      { sequence: "A,  D,  G,  J,  [ ? ]", options: ["K", "L", "M", "N"], answer: "M", explanation: "Skips 2 letters each time (+3)!" },
-                      { sequence: "1,  1,  2,  3,  5,  8,  [ ? ]", options: ["11", "13", "15", "21"], answer: "13", explanation: "Fibonacci sequence (add previous 2 numbers)!" },
-                      { sequence: "🔴  🔵  🟢  🔴  🔵  🟢  🔴  [ ? ]", options: ["🔴", "🔵", "🟢", "🟡"], answer: "🔵", explanation: "Repeating 3-color pattern!" },
-                    ];
-                    const pObj = PATTERN_ROUNDS[brainGameRound];
-
-                    return (
-                      <div className="space-y-4 py-2">
-                        <div className="bg-[#FAF6F0] border border-[#EADDC9] p-4 rounded-2xl text-center space-y-1">
-                          <span className="text-[9px] font-bold text-[#4A2711] uppercase tracking-wider">Complete the Pattern</span>
-                          <h3 className="text-lg font-bold text-gray-900 font-mono tracking-wide">{pObj.sequence}</h3>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2.5">
-                          {pObj.options.map(opt => (
+                      <div className="grid grid-cols-3 gap-2.5">
+                        {dualTaskCurrent.items.map((item: any) => {
+                          const isSelected = dualTaskUserSelected.includes(item.id);
+                          return (
                             <button
-                              key={opt}
+                              key={item.id}
                               onClick={() => {
-                                setPatternSelectedAns(opt);
-                                const isCorrect = opt === pObj.answer;
-                                const addScore = isCorrect ? 25 : 0;
-                                const newTotal = brainGameScore + addScore;
-
-                                setTimeout(() => {
-                                  if (brainGameRound < 3) {
-                                    setBrainGameScore(newTotal);
-                                    setBrainGameRound(prev => prev + 1);
-                                    setPatternSelectedAns(null);
-                                  } else {
-                                    setBrainGameScore(newTotal);
-                                    const todayStr = new Date().toISOString().split("T")[0];
-                                    const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-                                    if (lastEarned !== todayStr) {
-                                      const newCount = (streakCount || 0) + 1;
-                                      setStreakCount(newCount);
-                                      localStorage.setItem("quicksolv_streak_count", newCount.toString());
-                                      localStorage.setItem("quicksolv_streak_last_date", todayStr);
-                                      setStreakEarnedNewToday(true);
-                                    } else {
-                                      setStreakEarnedNewToday(false);
-                                    }
-                                    setStreakModalView("score");
-                                  }
-                                }, 300);
+                                if (isSelected) {
+                                  setDualTaskUserSelected(prev => prev.filter(i => i !== item.id));
+                                } else {
+                                  setDualTaskUserSelected(prev => [...prev, item.id]);
+                                }
                               }}
-                              className={`p-3.5 rounded-2xl border text-center font-bold text-sm transition cursor-pointer ${
-                                patternSelectedAns === opt
-                                  ? opt === pObj.answer
-                                    ? "bg-emerald-500 text-white border-emerald-600"
-                                    : "bg-rose-500 text-white border-rose-600"
+                              className={`p-3 rounded-xl border text-center font-bold text-xs transition cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#4A2711] text-white border-[#4A2711] scale-95 shadow-sm"
                                   : "bg-white hover:bg-gray-50 border-gray-200 text-gray-800"
                               }`}
                             >
-                              {opt}
+                              {item.val}
                             </button>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })()}
+
+                      <button
+                        onClick={() => {
+                          const correctItemIds = dualTaskCurrent.items.filter((i: any) => i.isCorrect).map((i: any) => i.id);
+                          const isCorrect = correctItemIds.length === dualTaskUserSelected.length && correctItemIds.every((id: number) => dualTaskUserSelected.includes(id));
+                          const addScore = isCorrect ? 25 : 10;
+                          const newTotal = brainGameScore + addScore;
+
+                          if (brainGameRound < 3) {
+                            setBrainGameScore(newTotal);
+                            const nextR = brainGameRound + 1;
+                            setBrainGameRound(nextR);
+                            startBrainGameRound("dual_task", nextR);
+                          } else {
+                            setBrainGameScore(newTotal);
+                            const todayStr = new Date().toISOString().split("T")[0];
+                            const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
+                            if (lastEarned !== todayStr) {
+                              const newCount = (streakCount || 0) + 1;
+                              setStreakCount(newCount);
+                              localStorage.setItem("quicksolv_streak_count", newCount.toString());
+                              localStorage.setItem("quicksolv_streak_last_date", todayStr);
+                              setStreakEarnedNewToday(true);
+                            } else {
+                              setStreakEarnedNewToday(false);
+                            }
+                            setStreakModalView("score");
+                          }
+                        }}
+                        className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl transition cursor-pointer shadow-sm text-xs mt-2"
+                      >
+                        Submit Selected Items
+                      </button>
+                    </div>
+                  )}
 
                 </div>
               )}
