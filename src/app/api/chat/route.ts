@@ -506,10 +506,14 @@ Output MUST be a single, valid JSON object matching this schema:
             controller.enqueue(encoder.encode(errMsg));
             accumulatedText = errMsg;
           } finally {
-            // Save final generated response (JSON-wrapped) to history
+            const promptTopic = prompt
+              ? prompt.trim().split(/\s+/).slice(0, 5).join(" ")
+              : "General Topic";
+            const formattedTopic = promptTopic.charAt(0).toUpperCase() + promptTopic.slice(1);
+
             const studyResponse = {
               subject: "General",
-              topic: "Chat Conversation",
+              topic: formattedTopic,
               difficulty: "Easy",
               quick_answer: accumulatedText || "No response generated.",
               easy_explanation: accumulatedText || "No response generated.",

@@ -782,9 +782,14 @@ Please populate the "career_mode" object in rich detail:
       }
 
       if (options.mode === "chat") {
+        const promptTopic = options.prompt
+          ? options.prompt.trim().split(/\s+/).slice(0, 5).join(" ")
+          : "General Topic";
+        const formattedTopic = promptTopic.charAt(0).toUpperCase() + promptTopic.slice(1);
+
         return {
           subject: "General",
-          topic: "Chat Conversation",
+          topic: formattedTopic,
           difficulty: "Easy",
           quick_answer: responseText,
           easy_explanation: responseText,
@@ -949,9 +954,14 @@ Please populate the "career_mode" object in rich detail:
     }
 
     if (options.mode === "chat") {
+      const promptTopic = options.prompt
+        ? options.prompt.trim().split(/\s+/).slice(0, 5).join(" ")
+        : "General Topic";
+      const formattedTopic = promptTopic.charAt(0).toUpperCase() + promptTopic.slice(1);
+
       let parsedResult: GeminiStudyResponse = {
         subject: "General",
-        topic: "Chat Conversation",
+        topic: formattedTopic,
         difficulty: "Easy",
         quick_answer: responseText,
         easy_explanation: responseText,

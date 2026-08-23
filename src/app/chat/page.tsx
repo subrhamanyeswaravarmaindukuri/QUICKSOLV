@@ -405,7 +405,28 @@ function ChatContent() {
     setStreakModalView("score");
   };
 
-  // Load level progress & persistent daily streak from localStorage on mount
+  // Dynamic Smart Topic Title Generator (Replaces generic "Chat Conversation" with actual main topic)
+  const getSmartChatTitle = (rawTitle?: string, fallbackPrompt?: string) => {
+    if (
+      rawTitle &&
+      rawTitle.toLowerCase() !== "chat conversation" &&
+      rawTitle.toLowerCase() !== "new conversation" &&
+      rawTitle.toLowerCase() !== "untitled chat" &&
+      rawTitle.trim().length > 0
+    ) {
+      return rawTitle;
+    }
+    const text = fallbackPrompt || "";
+    if (!text) return "General Topic";
+
+    const clean = text.trim().replace(/^[\s\W]+/, "");
+    const words = clean.split(/\s+/).slice(0, 5).join(" ");
+    if (!words) return "General Topic";
+    const formatted = words.charAt(0).toUpperCase() + words.slice(1);
+    return formatted.length > 28 ? formatted.substring(0, 28) + "..." : formatted;
+  };
+
+  // Load level progress, persistent daily streak & clean generic "Chat Conversation" titles on mount
   useEffect(() => {
     try {
       const savedLevels = localStorage.getItem("quicksolv_completed_levels");
@@ -418,6 +439,28 @@ function ChatContent() {
       const validStreak = isNaN(numStreak) || numStreak < 1 ? 1 : numStreak;
       setStreakCount(validStreak);
       localStorage.setItem("quicksolv_streak_count", validStreak.toString());
+
+      // Auto-upgrade any legacy "Chat Conversation" entries to real topic titles
+      const savedDb = localStorage.getItem("snaptutor_mock_db");
+      if (savedDb) {
+        const db = JSON.parse(savedDb);
+        if (db.conversations && Array.isArray(db.conversations)) {
+          let changed = false;
+          db.conversations.forEach((c: any) => {
+            if (!c.title || c.title.toLowerCase() === "chat conversation") {
+              const firstMsg = db.messages?.find((m: any) => m.conversation_id === c.id && m.role === "user");
+              const newTitle = getSmartChatTitle(c.title, firstMsg?.content || c.description);
+              if (newTitle !== c.title) {
+                c.title = newTitle;
+                changed = true;
+              }
+            }
+          });
+          if (changed) {
+            localStorage.setItem("snaptutor_mock_db", JSON.stringify(db));
+          }
+        }
+      }
     } catch {}
   }, []);
 
@@ -1667,9 +1710,10 @@ function ChatContent() {
 
         // Sync local storage if Supabase is not configured
         if (!isConfigured && activeId) {
+          const smartTopic = getSmartChatTitle(undefined, activePrompt);
           const simulatedResponse = {
             subject: "General",
-            topic: "Chat Conversation",
+            topic: smartTopic,
             difficulty: "Easy",
             quick_answer: text,
             easy_explanation: text,
@@ -1686,7 +1730,7 @@ function ChatContent() {
           
           await dbService.syncLocalChat(
             activeId,
-            simulatedResponse.topic,
+            smartTopic,
             activePrompt,
             simulatedResponse.subject,
             activePrompt,
@@ -1722,11 +1766,12 @@ function ChatContent() {
 
         // Sync local storage if Supabase is not configured
         if (!isConfigured) {
+          const smartTopic = getSmartChatTitle(data.response?.topic, activePrompt);
           await dbService.syncLocalChat(
             data.conversationId,
-            data.response.topic || activePrompt.substring(0, 30),
+            smartTopic,
             activePrompt,
-            data.response.subject || "General",
+            data.response?.subject || "General",
             activePrompt,
             data.response,
             attachedImage || undefined,
@@ -5100,25 +5145,28 @@ function ChatContent() {
             </div>
             
             <div className="space-y-0.5">
-              {conversations.map((conv, idx) => (
-                <button
-                  key={conv.id}
-                  onClick={() => {
-                    setActiveConvId(conv.id);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl transition duration-150 flex items-center justify-between text-xs font-medium ${
-                    activeConvId === conv.id
-                      ? "bg-[#FAF5EE] text-[#4A2711] font-semibold"
-                      : "text-gray-650 hover:bg-gray-50 hover:text-gray-950"
-                  }`}
-                >
-                  <span className="truncate pr-2">{conv.title}</span>
-                  <span className="text-[9px] text-gray-400 shrink-0">
-                    {getRecentTimestamp(conv)}
-                  </span>
-                </button>
-              ))}
+              {conversations.map((conv, idx) => {
+                const displayTitle = getSmartChatTitle(conv.title, conv.description);
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => {
+                      setActiveConvId(conv.id);
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl transition duration-150 flex items-center justify-between text-xs font-medium ${
+                      activeConvId === conv.id
+                        ? "bg-[#FAF5EE] text-[#4A2711] font-semibold"
+                        : "text-gray-650 hover:bg-gray-50 hover:text-gray-950"
+                    }`}
+                  >
+                    <span className="truncate pr-2">{displayTitle}</span>
+                    <span className="text-[9px] text-gray-400 shrink-0">
+                      {getRecentTimestamp(conv)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
