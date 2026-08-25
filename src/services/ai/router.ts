@@ -1,4 +1,5 @@
 import { generateGeminiContent, GeminiStudyResponse, GeminiOptions } from "./gemini";
+import { generateOxAlphaContent } from "./oxalpha";
 import { searchPatsnap, PatentResult } from "./patsnap";
 import { evaluateMathExpression, compareCalculations } from "./calculation";
 import { analyzeUserRequest } from "./intent";
@@ -127,7 +128,18 @@ export async function routeStudyRequest(options: RouterOptions): Promise<GeminiS
   }
 
   // 1. Core AI Query
-  let studyResponse = await generateGeminiContent(geminiOpts);
+  let studyResponse: GeminiStudyResponse;
+  if (options.modelOverride === "ox-alpha") {
+    studyResponse = await generateOxAlphaContent({
+      prompt: effectivePrompt,
+      mode: options.mode,
+      modelOverride: options.modelOverride,
+      apiKey: options.userOpenRouterKey,
+      userName: options.userName
+    });
+  } else {
+    studyResponse = await generateGeminiContent(geminiOpts);
+  }
 
   // 2. Patent Research Connector (Patsnap Eureka Integration)
   if (needsPatent) {

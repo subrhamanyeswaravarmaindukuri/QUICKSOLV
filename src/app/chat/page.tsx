@@ -7465,7 +7465,8 @@ function ChatContent() {
                     >
                       <Sparkles className="w-3 h-3 text-[#4A2711]" />
                       <span>
-                        {activeModel === "gemini-3.6-flash" ? "Gemini 3.6 Flash" :
+                        {activeModel === "ox-alpha" ? "Main Ox Alpha" :
+                         activeModel === "gemini-3.6-flash" ? "Gemini 3.6 Flash" :
                          activeModel === "gemini-3.5-flash" ? "Gemini 3.5 Flash" :
                          activeModel === "gemini-3.1-pro" ? "Gemini 3.1 Pro" :
                          activeModel === "claude-sonnet-4.6" ? "Claude Sonnet 4.6" :
@@ -7474,7 +7475,7 @@ function ChatContent() {
                          activeModel === "nvidia-nemotron-3-ultra-free" ? "Nemotron 3 Ultra" :
                          activeModel === "gemma-4-31b-free" ? "Gemma 4 31B" :
                          activeModel === "free-models-router" ? "Free Models Router" :
-                         activeModel === "gpt-oss-20b-free" ? "gpt-oss-20b" : "Gemini 3.6 Flash"}
+                         activeModel === "gpt-oss-20b-free" ? "gpt-oss-20b" : "Main Ox Alpha"}
                       </span>
                       <ChevronDown className="w-3 h-3 text-gray-400" />
                     </button>
@@ -7485,6 +7486,7 @@ function ChatContent() {
                           Select AI Model
                         </div>
                         {[
+                          { id: "ox-alpha", label: "Main Ox Alpha", meta: "Alpha AI", icon: true },
                           { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash", meta: "Fast", icon: true },
                           { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", meta: "Fast", icon: true },
                           { id: "gemini-3.1-pro", label: "Gemini 3.1 Pro", meta: "", icon: false },
