@@ -8,7 +8,7 @@ import {
   supabase,
   dbService
 } from "@/services/supabase";
-import { generatePptxFile, PresentationData } from "@/services/pptxGenerator";
+import { generatePptxFile, PresentationData, cleanMarkdownText } from "@/services/pptxGenerator";
 import {
   Send,
   Upload,
@@ -5747,16 +5747,6 @@ function ChatContent() {
                                 <Download className="w-3.5 h-3.5 text-[#4A2711]" />
                                 <span>Download PDF</span>
                               </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadPptx(study?.topic || "QuickSolv Presentation", study || { normal_solution: textContent })}
-                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition shadow-2xs cursor-pointer"
-                                title="Download 100% Real PowerPoint (.pptx) Presentation"
-                              >
-                                <FileText className="w-3.5 h-3.5 text-amber-700" />
-                                <span>Download PPTX 📊</span>
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -5777,6 +5767,79 @@ function ChatContent() {
                           <div className="text-[9px] text-gray-400 font-semibold mt-0.5">{formatMessageTime(msg)}</div>
                         </div>
                       </div>
+
+                      {/* 📊 REAL POWERPOINT PRESENTATION (.PPTX) FORMAT CARD */}
+                      {(study.presentation || (msg.mode === "presentation" || (prompt && (prompt.toLowerCase().includes("ppt") || prompt.toLowerCase().includes("presentation") || prompt.toLowerCase().includes("slide"))))) && (
+                        <div className="pl-10 max-w-5xl mb-6">
+                          <div className="bg-[#FAF5EE] border-2 border-[#EADDC9] rounded-3xl p-6 space-y-5 shadow-md font-sans">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-[#EADDC9] pb-4">
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-12 h-12 rounded-2xl bg-[#4A2711] text-white flex items-center justify-center font-bold text-xl shadow-sm shrink-0">
+                                  📊
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="text-base font-bold text-gray-900 font-serif">
+                                      {cleanMarkdownText(study.presentation?.topic || study.topic || "PowerPoint Presentation")}
+                                    </h3>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                                      100% Real PPTX Format
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 font-medium mt-0.5">
+                                    Interactive Slide Deck • {study.presentation?.slides?.length || 5} Professional Slides
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadPptx(study.presentation?.topic || study.topic || "Presentation", study)}
+                                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-[#4A2711] hover:bg-[#381d0c] text-white text-xs font-bold shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                              >
+                                <FileText className="w-4 h-4 text-amber-300" />
+                                <span>Download 100% Real PPTX 📥</span>
+                              </button>
+                            </div>
+
+                            {/* Slide Previews Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {(study.presentation?.slides || [
+                                { title: `Introduction to ${cleanMarkdownText(study.topic || "Topic")}`, subtitle: "Overview & Core Foundations", bulletPoints: (study.important_points?.slice(0, 3) || ["Core definition and principle", "Primary objective", "Key structural framework"]).map(p => cleanMarkdownText(p)), keyTakeaway: cleanMarkdownText(study.easy_explanation || "Main overview of topic") },
+                                { title: "Key Principles & Detailed Analysis", subtitle: "Core Technical Concepts", bulletPoints: (study.important_points?.slice(3, 6) || ["Technical detail and system behavior", "Core architectural requirement", "Primary operational rule"]).map(p => cleanMarkdownText(p)), keyTakeaway: cleanMarkdownText(study.memory_trick || "Solution principle") },
+                                { title: "Technical Formulas & Step Execution", subtitle: "Mathematical & Algorithmic Breakdown", bulletPoints: (study.formulas?.map((f: any) => `${f.formula}: ${f.meaning}`) || ["Step 1 implementation", "Step 2 execution", "Validation and checks"]).map(p => cleanMarkdownText(p)), keyTakeaway: "Verified mathematical proof and execution" },
+                                { title: "Real-World Applications & Scenarios", subtitle: "Practical Case Studies", bulletPoints: (study.examples?.map((e: any) => `${e.scenario} - ${e.explanation}`) || ["Practical application in production", "Real-world usage scenario", "Expected outcome"]).map(p => cleanMarkdownText(p)), keyTakeaway: "Practical impact and deployment" },
+                                { title: "Summary & Actionable Next Steps", subtitle: "Key Takeaways & Conclusion", bulletPoints: (study.common_mistakes?.map((m: string) => `Avoid: ${cleanMarkdownText(m)}`) || ["Review core principles", "Execute step-by-step instructions", "Verify final results"]).map(p => cleanMarkdownText(p)), keyTakeaway: "Actionable conclusion and final steps" }
+                              ]).map((slide: any, sIdx: number) => {
+                                const cleanTitle = cleanMarkdownText(slide.title);
+                                const cleanSub = cleanMarkdownText(slide.subtitle || "");
+                                const cleanTakeaway = cleanMarkdownText(slide.keyTakeaway || "");
+
+                                return (
+                                  <div key={sIdx} className="bg-white border border-[#EADDC9] rounded-2xl p-4.5 space-y-2.5 shadow-2xs relative">
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                      <span>Slide {sIdx + 1}</span>
+                                      <span className="text-[#4A2711] font-semibold">PowerPoint</span>
+                                    </div>
+                                    <h4 className="font-bold text-gray-900 text-sm font-serif leading-snug">{cleanTitle}</h4>
+                                    {cleanSub && <p className="text-xs text-gray-500 italic font-sans">{cleanSub}</p>}
+                                    <ul className="text-xs text-gray-700 space-y-1.5 pl-4 list-disc font-sans leading-relaxed">
+                                      {slide.bulletPoints?.map((bp: string, bIdx: number) => (
+                                        <li key={bIdx}>{cleanMarkdownText(bp)}</li>
+                                      ))}
+                                    </ul>
+                                    {cleanTakeaway && (
+                                      <div className="mt-2.5 p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs font-medium text-amber-950 font-sans">
+                                        💡 <span className="font-bold text-amber-900">Key Takeaway:</span> {cleanTakeaway}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Stack of themed study cards (Accordion) or Research Paper */}
                       {study.research_paper ? (
@@ -6155,16 +6218,6 @@ function ChatContent() {
                             >
                               <Download className="w-3.5 h-3.5 text-[#4A2711]" />
                               <span>Download PDF</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadPptx(study.topic || "QuickSolv Presentation", study)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition shadow-xs cursor-pointer"
-                              title="Download 100% Real PowerPoint (.pptx) Presentation"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-amber-700" />
-                              <span>Download PPTX 📊</span>
                             </button>
                           </div>
 
