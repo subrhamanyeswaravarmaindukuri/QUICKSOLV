@@ -15,10 +15,10 @@ export async function generateOxAlphaContent(options: OxAlphaOptions): Promise<G
     process.env.OPENROUTER_API_KEY ||
     "";
 
-  const model = options.modelOverride || "ox-alpha";
+  const model = options.modelOverride && options.modelOverride !== "ox-alpha" ? options.modelOverride : "openai/gpt-4o";
   const userName = options.userName || "User";
 
-  const systemInstruction = `You are QuickSolv powered by Main Ox Alpha, a world-class universal AI engine.
+  const systemInstruction = `You are QuickSolv powered by Main Ox Alpha (OpenAI GPT-4o Engine), a world-class universal AI solution engine.
 The user's name is ${userName}.
 
 ZERO FIXED RESPONSE TEMPLATE:
@@ -52,7 +52,7 @@ Return your response as a valid JSON object matching:
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: model.includes("/") ? model : "meta-llama/llama-3.3-70b-instruct", // Main Ox Alpha High Intelligence model endpoint
+        model: model,
         messages: [
           { role: "system", content: systemInstruction },
           { role: "user", content: options.prompt }
