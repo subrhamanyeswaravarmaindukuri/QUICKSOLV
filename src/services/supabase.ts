@@ -42,6 +42,7 @@ interface InMemoryDb {
     total: number;
     created_at: string;
   }>;
+  userStreaks?: Record<string, { streak_count: number; streak_last_date: string; streak_history: string[] }>;
 }
 
 // Clear all pre-populated mock history to allow a 100% clean and real user experience
@@ -375,6 +376,26 @@ export const dbService = {
     }
   },
 
+  async renameConversation(userId: string, conversationId: string, newTitle: string): Promise<boolean> {
+    if (supabase) {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ title: newTitle })
+        .eq("id", conversationId)
+        .eq("user_id", userId);
+      return !error;
+    } else {
+      const db = getDb();
+      const conv = db.conversations.find(item => item.id === conversationId && item.user_id === userId);
+      if (conv) {
+        conv.title = newTitle;
+        saveDb(db);
+        return true;
+      }
+      return false;
+    }
+  },
+
   async syncLocalChat(
     convId: string,
     title: string,
@@ -437,5 +458,70 @@ export const dbService = {
         saveDb(db);
       }
     }
+  },
+
+  async getUserStreak(userId: string): Promise<{ streak_count: number; streak_last_date: string; streak_history: string[] }> {
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from("user_streaks")
+          .select("streak_count, streak_last_date, streak_history")
+          .eq("user_id", userId)
+          .single();
+        if (data && !error) {
+          return {
+            streak_count: data.streak_count || 0,
+            streak_last_date: data.streak_last_date || "",
+            streak_history: Array.isArray(data.streak_history) ? data.streak_history : []
+          };
+        }
+      } catch (e) {
+        console.warn("Error fetching user_streaks from Supabase:", e);
+      }
+    }
+    
+    const db = getDb();
+    if (!db.userStreaks) db.userStreaks = {};
+    const record = db.userStreaks[userId];
+    if (record) {
+      return {
+        streak_count: record.streak_count || 0,
+        streak_last_date: record.streak_last_date || "",
+        streak_history: Array.isArray(record.streak_history) ? record.streak_history : []
+      };
+    }
+    return { streak_count: 0, streak_last_date: "", streak_history: [] };
+  },
+
+  async saveUserStreak(
+    userId: string,
+    streakCount: number,
+    lastDate: string,
+    history: string[]
+  ): Promise<void> {
+    if (supabase) {
+      try {
+        await supabase
+          .from("user_streaks")
+          .upsert({
+            user_id: userId,
+            streak_count: streakCount,
+            streak_last_date: lastDate,
+            streak_history: history,
+            updated_at: new Date().toISOString()
+          });
+      } catch (err) {
+        console.warn("Supabase user_streaks upsert warning:", err);
+      }
+    }
+
+    const db = getDb();
+    if (!db.userStreaks) db.userStreaks = {};
+    db.userStreaks[userId] = {
+      streak_count: streakCount,
+      streak_last_date: lastDate,
+      streak_history: history
+    };
+    saveDb(db);
   }
 };

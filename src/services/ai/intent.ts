@@ -28,6 +28,7 @@ export interface IntentAnalysis {
   needsCalculator: boolean;
   needsPatsnap: boolean;
   isFollowUp: boolean;
+  requiresUserDataPrompt?: boolean;
   followUpSubject?: string;
   detectedTopic?: string;
 }
@@ -109,11 +110,20 @@ export function classifyIntent(prompt: string, hasImage?: boolean, hasPdf?: bool
     return "EXPLAIN";
   }
 
+  // Resume, CV & Personalized Asset Creation
+  if (
+    p.includes("resume") || p.includes("cv") || p.includes("cover letter") ||
+    p.includes("build me") || p.includes("make a resume") || p.includes("write my resume") ||
+    p.includes("create cv") || p.includes("biodata") || p.includes("job application")
+  ) {
+    return "CREATE";
+  }
+
   // Plan & Create
   if (p.includes("plan") || p.includes("schedule") || p.includes("strategy") || p.includes("roadmap")) {
     return "PLAN";
   }
-  if (p.includes("create") || p.includes("generate") || p.includes("write an essay") || p.includes("draft") || p.includes("pitch deck")) {
+  if (p.includes("create") || p.includes("generate") || p.includes("write an essay") || p.includes("draft") || p.includes("pitch deck") || p.includes("write a")) {
     return "CREATE";
   }
   if (p.includes("analyze") || p.includes("analysis") || p.includes("breakdown")) {
@@ -130,16 +140,18 @@ export function determineDepth(prompt: string, intent: IntentType): ResponseDept
   const p = prompt.toLowerCase().trim();
   const wordCount = p.split(/\s+/).length;
 
-  if (p.includes("in short") || p.includes("briefly") || p.includes("quick answer") || p.includes("one line") || wordCount <= 4) {
-    return "SIMPLE";
-  }
-
   if (
+    p.includes("resume") || p.includes("cv") || p.includes("cover letter") ||
+    p.includes("build me") || p.includes("make a resume") || p.includes("write my resume") ||
     p.includes("in detail") || p.includes("step by step") || p.includes("comprehensive") ||
     p.includes("complete guide") || p.includes("architecture") || p.includes("roadmap") ||
-    intent === "RESEARCH" || intent === "LEARN" || intent === "DOCUMENT_ANALYSIS" || intent === "PLAN"
+    intent === "RESEARCH" || intent === "LEARN" || intent === "DOCUMENT_ANALYSIS" || intent === "PLAN" || intent === "CREATE"
   ) {
     return "COMPLEX";
+  }
+
+  if (p.includes("in short") || p.includes("briefly") || p.includes("quick answer") || p.includes("one line") || wordCount <= 4) {
+    return "SIMPLE";
   }
 
   return "MEDIUM";
@@ -191,6 +203,11 @@ export function analyzeUserRequest(prompt: string, mode?: string, hasImage?: boo
     mode === "research" &&
     ["patent", "prior art", "assignee", "intellectual property", "claims"].some(k => pLower.includes(k));
 
+  // Detect requests requiring specific user details (e.g. personal resumes without details provided)
+  const isPersonalAsset = ["resume", "cv", "cover letter"].some(k => pLower.includes(k));
+  const hasDetails = pLower.length > 80 && (pLower.includes("experience") || pLower.includes("skills") || pLower.includes("education") || pLower.includes("name:"));
+  const requiresUserDataPrompt = isPersonalAsset && !hasDetails;
+
   return {
     intent,
     depth,
@@ -198,6 +215,8 @@ export function analyzeUserRequest(prompt: string, mode?: string, hasImage?: boo
     needsWebSearch,
     needsCalculator,
     needsPatsnap,
-    isFollowUp
+    isFollowUp,
+    requiresUserDataPrompt
   };
 }
+

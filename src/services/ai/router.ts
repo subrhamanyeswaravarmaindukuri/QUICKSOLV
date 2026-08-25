@@ -75,21 +75,25 @@ export async function routeStudyRequest(options: RouterOptions): Promise<GeminiS
   const analysis = analyzeUserRequest(options.prompt, options.mode, !!options.image, !!options.pdf);
 
   let effectivePrompt = options.prompt;
-  if (analysis.isFollowUp && options.history && options.history.length > 0) {
+  if (options.history && options.history.length > 0) {
     const recentHistoryStr = options.history
-      .slice(-4)
+      .slice(-6)
       .map(h => {
         let text = h.content;
         if (h.role === "assistant") {
           try {
             const p = JSON.parse(h.content);
-            text = p.quick_answer || p.normal_solution || h.content;
+            text = p.quick_answer || p.normal_solution || p.code || h.content;
           } catch {}
         }
-        return `${h.role === "user" ? "User" : "Assistant"}: ${text.substring(0, 150)}`;
+        return `${h.role === "user" ? "User" : "Assistant"}: ${text.length > 600 ? text.substring(0, 600) + "..." : text}`;
       })
-      .join("\n");
-    effectivePrompt = `[CONVERSATION CONTEXT: The user is asking a follow-up query based on prior conversation:\n${recentHistoryStr}]\n\nFollow-up Request: ${options.prompt}`;
+      .join("\n\n");
+    effectivePrompt = `[PRIOR CONVERSATION HISTORY:\n${recentHistoryStr}]\n\nCurrent User Request: ${options.prompt}`;
+  }
+
+  if (analysis.requiresUserDataPrompt) {
+    effectivePrompt += `\n\n[QUICKSOLV FACTUAL INTEGRITY DIRECTIVE]: The user is asking for a personalized asset (e.g., resume, CV, or cover letter) without providing specific details. Provide a professional structure, but explicitly ask the user for their actual information (work history, skills, education, target role) rather than fabricating fake experience, companies, or metrics.`;
   }
 
   const needsSearch = analysis.needsWebSearch || requiresSearchGrounding(options.prompt, options.mode);

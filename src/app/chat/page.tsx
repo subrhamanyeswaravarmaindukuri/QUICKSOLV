@@ -47,7 +47,10 @@ import {
   Settings as SettingsIcon,
   MessageSquare,
   Calendar,
-  Download
+  Download,
+  Edit2,
+  Trash2,
+  Pencil
 } from "lucide-react";
 import {
   GeminiStudyResponse,
@@ -254,12 +257,51 @@ function ChatContent() {
   const [historyQuickFilter, setHistoryQuickFilter] = useState("All");
   const [showHistoryActionMenuId, setShowHistoryActionMenuId] = useState<string | null>(null);
 
+  // Chat Delete & Rename Modal State
+  const [deletingConv, setDeletingConv] = useState<any | null>(null);
+  const [renamingConv, setRenamingConv] = useState<any | null>(null);
+  const [renameInputTitle, setRenameInputTitle] = useState("");
+  const [activeSidebarMenuConvId, setActiveSidebarMenuConvId] = useState<string | null>(null);
+
+  const handleDeleteConversation = async (conv: any) => {
+    if (!conv) return;
+    const userId = user?.id || user?.email || "demo-user-123";
+    await dbService.deleteConversation(userId, conv.id);
+    const updatedList = await dbService.getConversations(userId);
+    setConversations(updatedList);
+    if (activeConvId === conv.id) {
+      if (updatedList.length > 0) {
+        setActiveConvId(updatedList[0].id);
+      } else {
+        startNewConversation();
+      }
+    }
+    setDeletingConv(null);
+    setActiveSidebarMenuConvId(null);
+    setShowHistoryActionMenuId(null);
+  };
+
+  const handleRenameConversation = async (conv: any, newTitle: string) => {
+    if (!conv || !newTitle.trim()) return;
+    const userId = user?.id || user?.email || "demo-user-123";
+    const cleanTitle = newTitle.trim();
+    await dbService.renameConversation(userId, conv.id, cleanTitle);
+    setConversations(prev =>
+      prev.map(c => (c.id === conv.id ? { ...c, title: cleanTitle } : c))
+    );
+    setRenamingConv(null);
+    setRenameInputTitle("");
+    setActiveSidebarMenuConvId(null);
+    setShowHistoryActionMenuId(null);
+  };
+
 
 
 
   // Streak System States
   const [streakHistory, setStreakHistory] = useState<string[]>([]);
   const [streakCount, setStreakCount] = useState(0);
+  const [streakLastDate, setStreakLastDate] = useState<string>("");
 
   // Streak Modal & Quiz States
   const [showStreakModal, setShowStreakModal] = useState(false);
@@ -369,23 +411,10 @@ function ChatContent() {
     localStorage.setItem(`quicksolv_level_result_${selectedBrainGame}_${selectedGameLevel}`, JSON.stringify(scorecard));
 
     // 2. Real-Time Persistent Daily Streak (+1 per calendar day, min 1)
-    const todayStr = new Date().toISOString().split("T")[0];
-    const lastEarned = localStorage.getItem("quicksolv_streak_last_date");
-    let currentStreakVal = streakCount >= 1 ? streakCount : 1;
-
-    if (lastEarned !== todayStr) {
-      const newCount = currentStreakVal + 1;
-      setStreakCount(newCount);
-      localStorage.setItem("quicksolv_streak_count", newCount.toString());
-      localStorage.setItem("quicksolv_streak_last_date", todayStr);
-      setStreakEarnedNewToday(true);
-    } else {
-      setStreakCount(currentStreakVal);
-      localStorage.setItem("quicksolv_streak_count", currentStreakVal.toString());
-      setStreakEarnedNewToday(false);
-    }
+    recordStreakProgress();
 
     // 3. Update Today's Real Daily Leaderboard (Sorted by speed/lowest timeSec!)
+    const todayStr = getTodayStr();
     const lbKey = `quicksolv_leaderboard_${todayStr}_${selectedBrainGame}`;
     const currentLb = getDailyLeaderboard(selectedBrainGame);
     const userName = user?.user_metadata?.full_name || profileData.fullName || "You (Player)";
@@ -434,11 +463,7 @@ function ChatContent() {
         setCompletedGameLevels(JSON.parse(savedLevels));
       }
 
-      const savedStreak = localStorage.getItem("quicksolv_streak_count");
-      const numStreak = savedStreak !== null ? parseInt(savedStreak, 10) : 1;
-      const validStreak = isNaN(numStreak) || numStreak < 1 ? 1 : numStreak;
-      setStreakCount(validStreak);
-      localStorage.setItem("quicksolv_streak_count", validStreak.toString());
+      loadUserStreak(user);
 
       // Auto-upgrade any legacy "Chat Conversation" entries to real topic titles
       const savedDb = localStorage.getItem("snaptutor_mock_db");
@@ -993,44 +1018,126 @@ function ChatContent() {
     }
   }, [user]);
 
-  // Load streak from localStorage on mount or when user changes
-  useEffect(() => {
-    if (user) {
-      const key = `quicksolv_streak_${user.id || user.email}`;
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setStreakHistory(parsed);
-          setStreakCount(parsed.length);
-        } catch {}
-      } else {
-        setStreakHistory([]);
-        setStreakCount(0);
+  // Helper date generators for local calendar timezone (YYYY-MM-DD)
+  const getTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const getYesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  // Authoritative Streak Loader (Local Storage + DB Service Sync across devices)
+  const loadUserStreak = async (currentUser: any) => {
+    const userId = currentUser?.id || currentUser?.email || "guest_user";
+    const todayStr = getTodayStr();
+    const yesterdayStr = getYesterdayStr();
+
+    // 1. Fetch remote user streak from Supabase / DB Service
+    let remoteStreak = { streak_count: 0, streak_last_date: "", streak_history: [] as string[] };
+    try {
+      remoteStreak = await dbService.getUserStreak(userId);
+    } catch (err) {
+      console.warn("Could not load streak from DB:", err);
+    }
+
+    // 2. Fetch local storage values
+    const localCountRaw = localStorage.getItem(`quicksolv_streak_count_${userId}`) || localStorage.getItem("quicksolv_streak_count");
+    const localCount = localCountRaw !== null ? parseInt(localCountRaw, 10) : 0;
+    const localLastDate = localStorage.getItem(`quicksolv_streak_last_date_${userId}`) || localStorage.getItem("quicksolv_streak_last_date") || "";
+    let localHistory: string[] = [];
+    try {
+      const savedHist = localStorage.getItem(`quicksolv_streak_${userId}`);
+      if (savedHist) localHistory = JSON.parse(savedHist);
+    } catch {}
+
+    // 3. Resolve most accurate count, last date & history
+    let count = Math.max(remoteStreak.streak_count || 0, isNaN(localCount) ? 0 : localCount);
+    let lastDate = remoteStreak.streak_last_date || localLastDate || "";
+    let history = remoteStreak.streak_history.length >= localHistory.length ? remoteStreak.streak_history : localHistory;
+
+    // 4. Consecutive Day Validation Logic
+    if (lastDate === todayStr) {
+      // Already active today! Keep streak count
+      if (count < 1 && (history.includes(todayStr) || localCount > 0)) count = Math.max(1, localCount);
+    } else if (lastDate === yesterdayStr) {
+      // Active yesterday! Streak intact, pending today's task completion to increment to next day!
+      if (count < 1) count = Math.max(1, localCount);
+    } else if (lastDate && lastDate < yesterdayStr) {
+      // Gap of 2+ days: streak broken due to inactivity! Reset to 0 (until new task completed today)
+      count = 0;
+    } else if (!lastDate) {
+      if (count > 0 && history.length > 0) {
+        lastDate = history[history.length - 1];
+        if (lastDate < yesterdayStr) count = 0;
       }
     }
+
+    // 5. Update React States
+    setStreakCount(count);
+    setStreakLastDate(lastDate);
+    setStreakHistory(history);
+
+    // 6. Sync back to local storage & DB
+    localStorage.setItem(`quicksolv_streak_count_${userId}`, count.toString());
+    localStorage.setItem("quicksolv_streak_count", count.toString());
+    localStorage.setItem(`quicksolv_streak_last_date_${userId}`, lastDate);
+    localStorage.setItem("quicksolv_streak_last_date", lastDate);
+    localStorage.setItem(`quicksolv_streak_${userId}`, JSON.stringify(history));
+
+    if (userId !== "guest_user") {
+      dbService.saveUserStreak(userId, count, lastDate, history);
+    }
+  };
+
+  // Trigger streak loading whenever user authentication state loads/changes
+  useEffect(() => {
+    loadUserStreak(user);
   }, [user]);
 
-  const recordStreakProgress = () => {
-    if (!user) return;
-    const userId = user.id || user.email;
-    const todayStr = new Date().toISOString().substring(0, 10);
-    const key = `quicksolv_streak_${userId}`;
-    const saved = localStorage.getItem(key);
-    
-    let history: string[] = [];
-    if (saved) {
-      try {
-        history = JSON.parse(saved);
-      } catch {}
+  // Real-Time Streak Recorder (Called when completing a task, game level, or daily quiz)
+  const recordStreakProgress = async () => {
+    const userId = user?.id || user?.email || "guest_user";
+    const todayStr = getTodayStr();
+    const yesterdayStr = getYesterdayStr();
+
+    let newCount = streakCount;
+    let newHistory = [...streakHistory];
+
+    if (streakLastDate !== todayStr) {
+      if (streakLastDate === yesterdayStr) {
+        // Active yesterday -> Consecutive day! Increment streak (1 -> 2, 2 -> 3, etc.)
+        newCount = (streakCount >= 1 ? streakCount : 1) + 1;
+      } else {
+        // First task ever or after broken streak -> Start 1 Day streak
+        newCount = 1;
+      }
+      if (!newHistory.includes(todayStr)) {
+        newHistory.push(todayStr);
+      }
+      setStreakEarnedNewToday(true);
+    } else {
+      // Already completed a task today, retain current valid streak count
+      if (newCount < 1) newCount = 1;
+      setStreakEarnedNewToday(false);
     }
-    
-    if (!history.includes(todayStr)) {
-      history.push(todayStr);
-      localStorage.setItem(key, JSON.stringify(history));
-      setStreakHistory(history);
-      setStreakCount(history.length);
-    }
+
+    setStreakCount(newCount);
+    setStreakLastDate(todayStr);
+    setStreakHistory(newHistory);
+
+    // Save to LocalStorage
+    localStorage.setItem(`quicksolv_streak_count_${userId}`, newCount.toString());
+    localStorage.setItem("quicksolv_streak_count", newCount.toString());
+    localStorage.setItem(`quicksolv_streak_last_date_${userId}`, todayStr);
+    localStorage.setItem("quicksolv_streak_last_date", todayStr);
+    localStorage.setItem(`quicksolv_streak_${userId}`, JSON.stringify(newHistory));
+
+    // Save to DB Service / Supabase across devices
+    await dbService.saveUserStreak(userId, newCount, todayStr, newHistory);
   };
 
   const startDailyQuizCategory = async (category: string) => {
@@ -3482,33 +3589,25 @@ function ChatContent() {
             {isMenuOpen && (
               <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-50 text-[11px] text-gray-700 animate-fade-in font-medium">
                 <button
-                  onClick={async () => {
-                    const confirmDel = window.confirm(`Delete chat "${conv.title}"?`);
-                    if (confirmDel) {
-                      await dbService.deleteConversation(user?.id || user?.email, conv.id);
-                      const list = await dbService.getConversations(user?.id || user?.email);
-                      setConversations(list);
-                      if (activeConvId === conv.id) {
-                        startNewConversation();
-                      }
-                    }
+                  onClick={() => {
+                    setDeletingConv(conv);
                     setShowHistoryActionMenuId(null);
                   }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-red-50 hover:text-red-600 transition"
+                  className="w-full text-left px-3 py-1.5 hover:bg-red-50 hover:text-red-600 transition flex items-center gap-2"
                 >
-                  🗑️ Delete Chat
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Chat
                 </button>
                 <button
                   onClick={() => {
-                    const newTitle = window.prompt("Enter new chat title:", conv.title);
-                    if (newTitle && newTitle.trim()) {
-                      setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, title: newTitle.trim() } : c));
-                    }
+                    setRenamingConv(conv);
+                    setRenameInputTitle(conv.title || "");
                     setShowHistoryActionMenuId(null);
                   }}
-                  className="w-full text-left px-3 py-1.5 hover:bg-gray-50 transition"
+                  className="w-full text-left px-3 py-1.5 hover:bg-gray-50 transition flex items-center gap-2"
                 >
-                  ✏️ Rename
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Rename Heading
                 </button>
                 <button
                   onClick={() => {
@@ -5140,31 +5239,61 @@ function ChatContent() {
 
           {/* Recent Chats Section */}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 mt-6">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
-              Recent Chats
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1 flex items-center justify-between">
+              <span>Recent Chats</span>
+              <span className="text-[9px] font-semibold text-gray-400">{conversations.length}</span>
             </div>
             
             <div className="space-y-0.5">
-              {conversations.map((conv, idx) => {
+              {conversations.map((conv) => {
                 const displayTitle = getSmartChatTitle(conv.title, conv.description);
+                const isActive = activeConvId === conv.id;
+
                 return (
-                  <button
-                    key={conv.id}
-                    onClick={() => {
-                      setActiveConvId(conv.id);
-                      setIsSidebarOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl transition duration-150 flex items-center justify-between text-xs font-medium ${
-                      activeConvId === conv.id
-                        ? "bg-[#FAF5EE] text-[#4A2711] font-semibold"
-                        : "text-gray-650 hover:bg-gray-50 hover:text-gray-950"
-                    }`}
-                  >
-                    <span className="truncate pr-2">{displayTitle}</span>
-                    <span className="text-[9px] text-gray-400 shrink-0">
-                      {getRecentTimestamp(conv)}
-                    </span>
-                  </button>
+                  <div key={conv.id} className="relative group">
+                    <div
+                      onClick={() => {
+                        setActiveConvId(conv.id);
+                        setIsSidebarOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2.5 rounded-xl transition duration-150 flex items-center justify-between text-xs font-medium cursor-pointer ${
+                        isActive
+                          ? "bg-[#FAF5EE] text-[#4A2711] font-semibold"
+                          : "text-gray-650 hover:bg-gray-50 hover:text-gray-950"
+                      }`}
+                    >
+                      <span className="truncate pr-2 flex-1">{displayTitle}</span>
+                      
+                      <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                        <span className="text-[9px] text-gray-400 group-hover:hidden">
+                          {getRecentTimestamp(conv)}
+                        </span>
+                        
+                        {/* Hover Quick Actions */}
+                        <div className="hidden group-hover:flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setRenamingConv(conv);
+                              setRenameInputTitle(conv.title || displayTitle);
+                            }}
+                            className="p-1 rounded-lg hover:bg-gray-200/80 text-gray-500 hover:text-gray-800 transition"
+                            title="Rename chat heading"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeletingConv(conv);
+                            }}
+                            className="p-1 rounded-lg hover:bg-red-100 text-gray-500 hover:text-red-600 transition"
+                            title="Delete chat"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -8902,6 +9031,128 @@ function ChatContent() {
 
               </form>
 
+            </div>
+          </div>
+        )}
+
+        {/* DELETE CHAT CONFIRMATION MODAL */}
+        {deletingConv && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200/60 flex items-center justify-center text-red-600 font-bold shrink-0">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 font-serif">Delete Chat Confirmation</h3>
+                    <p className="text-xs text-gray-500">Permanent conversation deletion</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDeletingConv(null)}
+                  className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3.5 bg-red-50/70 border border-red-200 rounded-2xl space-y-2">
+                <div className="text-xs font-bold text-red-900">
+                  Are you sure you want to delete this chat?
+                </div>
+                <p className="text-xs text-red-700/90 leading-relaxed">
+                  "<span className="font-bold text-red-950">{deletingConv.title || "Untitled Chat"}</span>" will be permanently deleted along with all its messages and solutions.
+                </p>
+                <div className="pt-1">
+                  <mark style={{ backgroundColor: "#fee2e2", color: "#991b1b", padding: "4px 8px", borderRadius: "6px", fontWeight: 600, fontSize: "11px", display: "inline-block" }}>
+                    ⚠️ Permanent Action: 1 deleted, it won't be returned.
+                  </mark>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setDeletingConv(null)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeleteConversation(deletingConv)}
+                  className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Chat Forever
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RENAME CHAT HEADING MODAL */}
+        {renamingConv && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#FAF5EE] border border-[#EADDC9]/60 flex items-center justify-center text-[#4A2711] font-bold shrink-0">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900 font-serif">Rename Chat Heading</h3>
+                    <p className="text-xs text-gray-500">Edit custom title for your chat session</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setRenamingConv(null);
+                    setRenameInputTitle("");
+                  }}
+                  className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-700 block">
+                  Chat Heading / Title
+                </label>
+                <input
+                  type="text"
+                  value={renameInputTitle}
+                  onChange={(e) => setRenameInputTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleRenameConversation(renamingConv, renameInputTitle);
+                    }
+                  }}
+                  placeholder="Enter new chat heading..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-xs focus:ring-2 focus:ring-[#4A2711] focus:outline-none font-medium"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setRenamingConv(null);
+                    setRenameInputTitle("");
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleRenameConversation(renamingConv, renameInputTitle)}
+                  disabled={!renameInputTitle.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-[#4A2711] hover:bg-[#381d0c] disabled:opacity-50 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Save Heading
+                </button>
+              </div>
             </div>
           </div>
         )}
