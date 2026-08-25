@@ -8,6 +8,7 @@ import {
   supabase,
   dbService
 } from "@/services/supabase";
+import { generatePptxFile, PresentationData } from "@/services/pptxGenerator";
 import {
   Send,
   Upload,
@@ -293,6 +294,70 @@ function ChatContent() {
     setRenameInputTitle("");
     setActiveSidebarMenuConvId(null);
     setShowHistoryActionMenuId(null);
+  };
+
+  const handleDownloadPptx = async (title: string, msgData?: any) => {
+    try {
+      let presentationObj: PresentationData;
+
+      if (msgData?.presentation?.slides && Array.isArray(msgData.presentation.slides) && msgData.presentation.slides.length > 0) {
+        presentationObj = {
+          topic: msgData.presentation.topic || title || "Presentation",
+          slides: msgData.presentation.slides
+        };
+      } else {
+        const topicName = title || msgData?.topic || "Study Presentation";
+        const contentText = msgData?.normal_solution || msgData?.quick_answer || "Complete Presentation Content";
+        const points = (msgData?.important_points && msgData.important_points.length > 0) 
+          ? msgData.important_points 
+          : contentText.split("\n").filter((l: string) => l.trim().length > 10).slice(0, 15);
+
+        const slides = [
+          {
+            title: `Introduction to ${topicName}`,
+            subtitle: msgData?.easy_explanation ? msgData.easy_explanation.substring(0, 120) : `Core concepts and overview of ${topicName}`,
+            bulletPoints: points.slice(0, 3).length > 0 ? points.slice(0, 3) : [`Overview of ${topicName}`, "Core principles", "Key foundations"],
+            keyTakeaway: msgData?.easy_explanation || `Overview of ${topicName}`
+          },
+          {
+            title: `Key Concepts & Solutions`,
+            subtitle: "Detailed analysis and core principles",
+            bulletPoints: points.slice(3, 7).length > 0 ? points.slice(3, 7) : ["Primary technical detail", "System behavior", "Implementation principle"],
+            keyTakeaway: msgData?.memory_trick || "Core solution principle"
+          },
+          {
+            title: `Technical Execution & Formulas`,
+            subtitle: "Step-by-step breakdown",
+            bulletPoints: msgData?.formulas?.map((f: any) => `${f.formula}: ${f.meaning}`) || (points.slice(7, 10).length > 0 ? points.slice(7, 10) : ["Technical step 1", "Technical step 2", "Validation"]),
+            keyTakeaway: "Verified mathematical & technical proof"
+          },
+          {
+            title: `Real-World Applications`,
+            subtitle: "Practical usage scenarios",
+            bulletPoints: msgData?.examples?.map((e: any) => `${e.scenario} - ${e.explanation}`) || (points.slice(10, 13).length > 0 ? points.slice(10, 13) : ["Practical scenario A", "Production usage", "Performance outcome"]),
+            keyTakeaway: "Practical application in real-world context"
+          },
+          {
+            title: `Summary & Action Points`,
+            subtitle: "Key takeaways and next steps",
+            bulletPoints: msgData?.common_mistakes?.length > 0 
+              ? msgData.common_mistakes.map((m: string) => `Avoid: ${m}`)
+              : ["Review core principles", "Execute step-by-step instructions", "Verify final results"],
+            keyTakeaway: "Actionable conclusion and final steps"
+          }
+        ];
+
+        presentationObj = {
+          topic: topicName,
+          slides
+        };
+      }
+
+      await generatePptxFile(presentationObj);
+    } catch (err) {
+      console.error("Failed to generate PPTX:", err);
+      alert("Failed to generate PPTX presentation file. Please try again.");
+    }
   };
 
 
@@ -5682,6 +5747,16 @@ function ChatContent() {
                                 <Download className="w-3.5 h-3.5 text-[#4A2711]" />
                                 <span>Download PDF</span>
                               </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadPptx(study?.topic || "QuickSolv Presentation", study || { normal_solution: textContent })}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition shadow-2xs cursor-pointer"
+                                title="Download 100% Real PowerPoint (.pptx) Presentation"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-amber-700" />
+                                <span>Download PPTX 📊</span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -6080,6 +6155,16 @@ function ChatContent() {
                             >
                               <Download className="w-3.5 h-3.5 text-[#4A2711]" />
                               <span>Download PDF</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadPptx(study.topic || "QuickSolv Presentation", study)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-[11px] font-semibold text-amber-900 transition shadow-xs cursor-pointer"
+                              title="Download 100% Real PowerPoint (.pptx) Presentation"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Download PPTX 📊</span>
                             </button>
                           </div>
 

@@ -25,6 +25,19 @@ export interface GeminiExamAnswer {
   mark_10?: string;
 }
 
+export interface GeminiPptSlide {
+  title: string;
+  subtitle?: string;
+  bulletPoints: string[];
+  keyTakeaway?: string;
+}
+
+export interface GeminiPresentation {
+  topic: string;
+  total_slides: number;
+  slides: GeminiPptSlide[];
+}
+
 export interface GeminiStudyResponse {
   subject: string;
   topic: string;
@@ -40,6 +53,7 @@ export interface GeminiStudyResponse {
   important_points: string[];
   quiz: GeminiQuizQuestion[];
   confidence: string;
+  presentation?: GeminiPresentation;
   calculations?: Array<{ expression: string; model_result: string }>;
   research_findings?: string;
   sources?: Array<{ title: string; url: string }>;
@@ -411,6 +425,18 @@ Output MUST be a single, valid JSON object matching this schema:
     { "question": "Quiz question text", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_answer": "Option A (must exactly match one of the options)", "explanation": "Why this is correct" }
   ],
   "confidence": "High, Medium, or Low",
+  "presentation": {
+    "topic": "Presentation Topic",
+    "total_slides": 5,
+    "slides": [
+      {
+        "title": "Slide Title",
+        "subtitle": "Slide Subtitle",
+        "bulletPoints": ["Detailed slide point 1", "Detailed slide point 2"],
+        "keyTakeaway": "Key slide takeaway"
+      }
+    ]
+  },
   "research_paper": {
     "citation": "Full academic citation (authors, year, venue, title)",
     "why_reading": "1-line explanation of why this research matters",
