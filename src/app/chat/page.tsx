@@ -84,7 +84,7 @@ function ChatContent() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Model Selection Dropdown
-  const [activeModel, setActiveModel] = useState("gemini-3.6-flash");
+  const [activeModel, setActiveModel] = useState("ox-alpha");
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   
