@@ -905,15 +905,14 @@ Please populate the "career_mode" object in rich detail:
   if (!isDirectGeminiKeyValid) {
     throw new Error("Invalid or missing Google Gemini API Key. Google Gemini keys must start with 'AIzaSy' or 'AQ.'. Please configure a valid key or use OpenRouter.");
   }
-  let activeGoogleModel = "gemini-2.5-flash";
-  if (model.includes("pro")) {
-    activeGoogleModel = "gemini-2.5-pro";
-  } else if (model.includes("2.0")) {
-    activeGoogleModel = "gemini-2.0-flash";
-  } else if (model.includes("1.5")) {
-    activeGoogleModel = "gemini-1.5-flash";
-  }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeGoogleModel}:generateContent?key=${apiKey}`;
+  
+  const googleCandidates = Array.from(new Set([
+    model.includes("pro") ? "gemini-1.5-pro" : "gemini-3.6-flash",
+    "gemini-3.6-flash",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-pro"
+  ]));
 
   // Construct contents payload
   const parts: any[] = [];
@@ -1001,107 +1000,81 @@ Please populate the "career_mode" object in rich detail:
     delete payload.generationConfig.responseMimeType;
   }
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(20000)
-    });
+  let lastGoogleErr: any = null;
+  for (const activeGoogleModel of googleCandidates) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeGoogleModel}:generateContent?key=${apiKey}`;
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20000)
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Gemini API returned error ${response.status}`, errorText);
-      throw new Error(`Gemini API returned status ${response.status}: ${response.statusText}`);
-    }
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`Gemini model '${activeGoogleModel}' returned error ${response.status}:`, errorText);
+        lastGoogleErr = new Error(`Gemini status ${response.status}: ${errorText}`);
+        continue;
+      }
 
-    const responseData = await response.json();
-    
-    // Extract candidate text
-    const candidate = responseData.candidates?.[0];
-    const responseText = candidate?.content?.parts?.[0]?.text;
+      const responseData = await response.json();
+      const candidate = responseData.candidates?.[0];
+      const responseText = candidate?.content?.parts?.[0]?.text;
 
-    if (!responseText) {
-      throw new Error("Gemini returned an empty response.");
-    }
+      if (!responseText) {
+        continue;
+      }
 
-    if (options.mode === "chat") {
-      const promptTopic = options.prompt
-        ? options.prompt.trim().split(/\s+/).slice(0, 5).join(" ")
-        : "General Topic";
-      const formattedTopic = promptTopic.charAt(0).toUpperCase() + promptTopic.slice(1);
+      if (options.mode === "chat") {
+        const promptTopic = options.prompt
+          ? options.prompt.trim().split(/\s+/).slice(0, 5).join(" ")
+          : "General Topic";
+        const formattedTopic = promptTopic.charAt(0).toUpperCase() + promptTopic.slice(1);
 
-      let parsedResult: GeminiStudyResponse = {
-        subject: "General",
-        topic: formattedTopic,
-        difficulty: "Easy",
-        quick_answer: responseText,
-        easy_explanation: responseText,
-        normal_solution: responseText,
-        formulas: [],
-        examples: [],
-        exam_answer: {},
-        memory_trick: "",
-        common_mistakes: [],
-        important_points: [],
-        quiz: [],
-        confidence: "High"
-      };
+        return {
+          subject: "General",
+          topic: formattedTopic,
+          difficulty: "Easy",
+          quick_answer: responseText,
+          easy_explanation: responseText,
+          normal_solution: responseText,
+          formulas: [],
+          examples: [],
+          exam_answer: {},
+          memory_trick: "",
+          common_mistakes: [],
+          important_points: [],
+          quiz: [],
+          confidence: "High"
+        };
+      }
 
-      if (candidate?.groundingMetadata) {
-        const metadata = candidate.groundingMetadata;
-        const chunks = metadata.groundingChunks || [];
-        const sources = chunks
-          .filter((chunk: any) => chunk.web)
-          .map((chunk: any) => ({
-            title: chunk.web.title || "Web Source",
-            url: chunk.web.uri || ""
-          }));
-        parsedResult.sources = sources;
+      let parsedResult: GeminiStudyResponse;
+      try {
+        const startIdx = responseText.indexOf("{");
+        const endIdx = responseText.lastIndexOf("}");
+        if (startIdx === -1 || endIdx === -1) {
+          throw new Error("No JSON object found in response");
+        }
+        const jsonStr = responseText.substring(startIdx, endIdx + 1);
+        const cleanedStr = cleanJsonResponse(jsonStr);
+        parsedResult = JSON.parse(cleanedStr);
+      } catch (parseErr) {
+        console.error("Failed to parse Gemini JSON output. Raw output was:", responseText);
+        throw new Error("The tutor's answer format was invalid. Please try again.");
       }
 
       return parsedResult;
+    } catch (err: any) {
+      console.warn(`Direct Gemini attempt with '${activeGoogleModel}' failed:`, err);
+      lastGoogleErr = err;
     }
-
-    // Try to parse the JSON output
-    let parsedResult: GeminiStudyResponse;
-    try {
-      // Find the first '{' and last '}' to strip markdown formatting if any
-      const startIdx = responseText.indexOf("{");
-      const endIdx = responseText.lastIndexOf("}");
-      if (startIdx === -1 || endIdx === -1) {
-        throw new Error("No JSON object found in response");
-      }
-      const jsonStr = responseText.substring(startIdx, endIdx + 1);
-      const cleanedStr = cleanJsonResponse(jsonStr);
-      parsedResult = JSON.parse(cleanedStr);
-    } catch (parseErr) {
-      console.error("Failed to parse Gemini JSON output. Raw output was:", responseText);
-      throw new Error("The tutor's answer format was invalid. Please try again.");
-    }
-
-    // Extract search grounding metadata if present
-    if (candidate?.groundingMetadata) {
-      const metadata = candidate.groundingMetadata;
-      const chunks = metadata.groundingChunks || [];
-      const sources = chunks
-        .filter((chunk: any) => chunk.web)
-        .map((chunk: any) => ({
-          title: chunk.web.title || "Web Source",
-          url: chunk.web.uri || ""
-        }));
-
-      parsedResult.sources = sources;
-      parsedResult.research_findings = parsedResult.quick_answer || parsedResult.easy_explanation;
-    }
-
-    return parsedResult;
-  } catch (err: any) {
-    console.error("Gemini API call failed:", err);
-    throw err;
   }
+
+  throw lastGoogleErr || new Error("All direct Gemini model attempts failed.");
 }
 
 /**
@@ -1204,15 +1177,13 @@ export async function generateGeminiContentStream(
 
   // Helper for Direct Gemini Stream
   const runDirectGeminiStream = async (): Promise<string> => {
-    let activeGoogleModel = "gemini-2.5-flash";
-    if (model.includes("pro")) {
-      activeGoogleModel = "gemini-2.5-pro";
-    } else if (model.includes("2.0")) {
-      activeGoogleModel = "gemini-2.0-flash";
-    } else if (model.includes("1.5")) {
-      activeGoogleModel = "gemini-1.5-flash";
-    }
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeGoogleModel}:streamGenerateContent?key=${apiKey}`;
+    const googleCandidates = Array.from(new Set([
+      model.includes("pro") ? "gemini-1.5-pro" : "gemini-3.6-flash",
+      "gemini-3.6-flash",
+      "gemini-1.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-pro"
+    ]));
 
     const contents: any[] = [];
     if (options.history && options.history.length > 0) {
@@ -1254,68 +1225,85 @@ export async function generateGeminiContentStream(
     parts.push({ text: options.prompt });
     contents.push({ role: "user", parts });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemInstruction }] }
-      }),
-      signal
-    });
+    let lastErr: any = null;
+    for (const activeGoogleModel of googleCandidates) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeGoogleModel}:streamGenerateContent?key=${apiKey}`;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Gemini streaming API returned status ${response.status}: ${errText}`);
-    }
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            systemInstruction: { parts: [{ text: systemInstruction }] }
+          }),
+          signal
+        });
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("Gemini stream body is not readable.");
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn(`Direct Gemini model '${activeGoogleModel}' failed status ${response.status}:`, errText);
+          lastErr = new Error(`Gemini streaming API status ${response.status}: ${errText}`);
+          continue;
+        }
 
-    const decoder = new TextDecoder();
-    let accumulatedText = "";
-    let buffer = "";
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("Gemini stream body is not readable.");
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        let buffer = "";
 
-        buffer += decoder.decode(value, { stream: true });
-        let openBrackets = 0;
-        let startIdx = -1;
-        
-        for (let i = 0; i < buffer.length; i++) {
-          const char = buffer[i];
-          if (char === "{") {
-            if (openBrackets === 0) startIdx = i;
-            openBrackets++;
-          } else if (char === "}") {
-            openBrackets--;
-            if (openBrackets === 0 && startIdx !== -1) {
-              const objStr = buffer.substring(startIdx, i + 1);
-              try {
-                const parsed = JSON.parse(objStr);
-                const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                if (chunkText) {
-                  accumulatedText += chunkText;
-                  onChunk(chunkText);
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            let openBrackets = 0;
+            let startIdx = -1;
+            
+            for (let i = 0; i < buffer.length; i++) {
+              const char = buffer[i];
+              if (char === "{") {
+                if (openBrackets === 0) startIdx = i;
+                openBrackets++;
+              } else if (char === "}") {
+                openBrackets--;
+                if (openBrackets === 0 && startIdx !== -1) {
+                  const objStr = buffer.substring(startIdx, i + 1);
+                  try {
+                    const parsed = JSON.parse(objStr);
+                    const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    if (chunkText) {
+                      accumulatedText += chunkText;
+                      onChunk(chunkText);
+                    }
+                  } catch (e) {
+                    // ignore parsing on partial structures
+                  }
+                  buffer = buffer.substring(i + 1);
+                  i = -1;
+                  startIdx = -1;
                 }
-              } catch (e) {
-                // ignore parsing on partial structures
               }
-              buffer = buffer.substring(i + 1);
-              i = -1;
-              startIdx = -1;
             }
           }
+        } finally {
+          reader.releaseLock();
         }
+
+        if (accumulatedText) {
+          return accumulatedText;
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") throw err;
+        console.warn(`Stream attempt with direct model '${activeGoogleModel}' failed:`, err);
+        lastErr = err;
       }
-    } finally {
-      reader.releaseLock();
     }
 
-    return accumulatedText;
+    throw lastErr || new Error("All direct Gemini streaming attempts failed.");
   };
 
   // Helper for OpenRouter Stream
@@ -1347,18 +1335,25 @@ export async function generateGeminiContentStream(
     }
     messages.push({ role: "user", content: userPrompt });
     
-    let requestedModel = "openai/gpt-4o";
+    let requestedModel = "openai/gpt-4o-mini";
     if (model === "ox-alpha" || model.includes("ox-alpha") || model.includes("gpt")) {
-      requestedModel = "openai/gpt-4o";
+      requestedModel = "openai/gpt-4o-mini";
     } else if (model.includes("pro")) {
       requestedModel = "google/gemini-2.5-pro";
-    } else if (model.includes("claude-sonnet")) {
+    } else if (model.includes("claude-sonnet") || model.includes("claude")) {
       requestedModel = "anthropic/claude-3.5-sonnet";
     } else {
       requestedModel = model;
     }
     
-    const candidateModels = Array.from(new Set([requestedModel, "openai/gpt-4o", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct:free"]));
+    const candidateModels = Array.from(new Set([
+      requestedModel,
+      "openai/gpt-4o-mini",
+      "openai/gpt-4o",
+      "google/gemini-2.5-flash",
+      "anthropic/claude-3.5-sonnet",
+      "meta-llama/llama-3.3-70b-instruct"
+    ]));
     let lastErrStr = "";
 
     for (const activeModel of candidateModels) {
@@ -1366,7 +1361,7 @@ export async function generateGeminiContentStream(
         const payload = {
           model: activeModel,
           messages,
-          max_tokens: 3000,
+          max_tokens: 2500,
           stream: true
         };
         

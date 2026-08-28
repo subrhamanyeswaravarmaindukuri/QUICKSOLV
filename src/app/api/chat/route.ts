@@ -481,6 +481,7 @@ Output MUST be a single, valid JSON object matching this schema:
 
       const encoder = new TextEncoder();
       let accumulatedText = "";
+      const requestSignal = request.signal;
 
       const stream = new ReadableStream({
         async start(controller) {
@@ -497,7 +498,7 @@ Output MUST be a single, valid JSON object matching this schema:
                 history: historyList,
                 modelOverride: modelOverride
               },
-              request.signal,
+              requestSignal,
               (chunk) => {
                 controller.enqueue(encoder.encode(chunk));
               }
