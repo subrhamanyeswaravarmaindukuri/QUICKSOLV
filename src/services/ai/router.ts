@@ -129,13 +129,17 @@ export async function routeStudyRequest(options: RouterOptions): Promise<GeminiS
 
   // 1. Core AI Query
   let studyResponse: GeminiStudyResponse;
-  if (options.modelOverride === "ox-alpha") {
+  const targetModel = options.modelOverride || "ox-alpha";
+  if (targetModel === "ox-alpha") {
     studyResponse = await generateOxAlphaContent({
       prompt: effectivePrompt,
       mode: options.mode,
-      modelOverride: options.modelOverride,
-      apiKey: options.userOpenRouterKey,
-      userName: options.userName
+      modelOverride: targetModel,
+      apiKey: options.userOpenRouterKey || process.env.OX_ALPHA_API_KEY || process.env.OPENROUTER_API_KEY,
+      userName: options.userName,
+      history: options.history,
+      image: options.image,
+      pdf: options.pdf
     });
   } else {
     studyResponse = await generateGeminiContent(geminiOpts);

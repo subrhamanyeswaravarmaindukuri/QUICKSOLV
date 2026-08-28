@@ -23,6 +23,8 @@ function isRateLimited(clientKey: string, limit = 30, windowMs = 60000): boolean
   return false;
 }
 
+export const dynamic = "force-static";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -565,7 +567,8 @@ Output MUST be a single, valid JSON object matching this schema:
         userGeminiKey,
         userOpenRouterKey,
         userName: userName || "",
-        history: historyList
+        history: historyList,
+        modelOverride: modelOverride || "ox-alpha"
       });
     } catch (aiErr: any) {
       console.error("AI processing failed:", aiErr);

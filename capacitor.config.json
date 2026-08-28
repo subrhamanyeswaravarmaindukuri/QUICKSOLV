@@ -1,7 +1,7 @@
 {
   "appId": "com.quicksolv.app",
   "appName": "QuickSolv",
-  "webDir": "public",
+  "webDir": "out",
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https",

@@ -226,7 +226,7 @@ export interface GeminiOptions {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
 }
 
-const DEFAULT_MODEL = "gemini-3.1-flash-lite";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 /**
  * Safely cleans up raw newlines and invalid LaTeX escape sequences inside JSON string literals
@@ -750,26 +750,22 @@ Please populate the "career_mode" object in rich detail:
     }
     // Map Gemini models to OpenRouter identifiers
     let mappedModel = "google/gemini-2.5-flash";
-    if (model.includes("gemini-3.6-flash")) {
-      mappedModel = "google/gemini-2.5-flash";
-    } else if (model.includes("gemini-3.5-flash")) {
-      mappedModel = "google/gemini-2.5-flash";
-    } else if (model.includes("gemini-3.1-pro")) {
+    if (model.includes("pro") || model.includes("gemini-2.5-pro")) {
       mappedModel = "google/gemini-2.5-pro";
-    } else if (model.includes("claude-sonnet")) {
+    } else if (model.includes("flash") || model.includes("gemini-2.5-flash")) {
+      mappedModel = "google/gemini-2.5-flash";
+    } else if (model.includes("claude-sonnet") || model.includes("claude")) {
       mappedModel = "anthropic/claude-3.5-sonnet";
     } else if (model.includes("claude-opus")) {
       mappedModel = "anthropic/claude-3-opus";
-    } else if (model.includes("nvidia-nemotron-3-ultra-free")) {
-      mappedModel = "nvidia/nemotron-3-ultra-550b-a55b:free";
-    } else if (model.includes("gemma-4-31b-free")) {
-      mappedModel = "google/gemma-2-9b-it:free";
-    } else if (model.includes("free-models-router")) {
-      mappedModel = "openrouter/auto";
-    } else if (model.includes("gpt-oss-20b-free")) {
-      mappedModel = "meta-llama/llama-3-8b-instruct:free";
-    } else if (model.includes("gpt-oss")) {
-      mappedModel = "meta-llama/llama-3.1-405b-instruct";
+    } else if (model.includes("gpt-4o") || model.includes("gpt")) {
+      mappedModel = "openai/gpt-4o";
+    } else if (model.includes("free") || model.includes("llama")) {
+      mappedModel = "meta-llama/llama-3.3-70b-instruct:free";
+    } else if (model.includes("ox-alpha")) {
+      mappedModel = "openai/gpt-4o";
+    } else {
+      mappedModel = model;
     }
 
     const messages: any[] = [
@@ -909,13 +905,13 @@ Please populate the "career_mode" object in rich detail:
   if (!isDirectGeminiKeyValid) {
     throw new Error("Invalid or missing Google Gemini API Key. Google Gemini keys must start with 'AIzaSy' or 'AQ.'. Please configure a valid key or use OpenRouter.");
   }
-  let activeGoogleModel = "gemini-3.6-flash";
+  let activeGoogleModel = "gemini-2.5-flash";
   if (model.includes("pro")) {
-    activeGoogleModel = "gemini-3.1-pro-preview";
-  } else if (model.includes("gemini-3.6-flash")) {
-    activeGoogleModel = "gemini-3.6-flash";
-  } else if (model.includes("gemini-3.5-flash")) {
-    activeGoogleModel = "gemini-3.5-flash";
+    activeGoogleModel = "gemini-2.5-pro";
+  } else if (model.includes("2.0")) {
+    activeGoogleModel = "gemini-2.0-flash";
+  } else if (model.includes("1.5")) {
+    activeGoogleModel = "gemini-1.5-flash";
   }
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeGoogleModel}:generateContent?key=${apiKey}`;
 
@@ -1114,10 +1110,15 @@ Please populate the "career_mode" object in rich detail:
  */
 export async function generateRawGeminiText(prompt: string, modelOverride?: string, userGeminiKey?: string, userOpenRouterKey?: string): Promise<string> {
   const apiKey = userGeminiKey || process.env.GEMINI_API_KEY;
-  const openRouterKey = userOpenRouterKey || process.env.OPENROUTER_API_KEY;
+  const openRouterKey = userOpenRouterKey || process.env.OX_ALPHA_API_KEY || process.env.OPENROUTER_API_KEY;
+
+  if (modelOverride === "ox-alpha" || (!apiKey && openRouterKey)) {
+    const { generateRawOxAlphaText } = await import("./oxalpha");
+    return await generateRawOxAlphaText(prompt, openRouterKey);
+  }
 
   if (!apiKey && !openRouterKey) {
-    throw new Error("API Keys are missing. Please configure GEMINI_API_KEY or OPENROUTER_API_KEY.");
+    throw new Error("API Keys are missing. Please configure GEMINI_API_KEY or OX_ALPHA_API_KEY.");
   }
 
   const DEFAULT_MODEL = "gemini-3.1-flash-lite";
@@ -1141,7 +1142,8 @@ export async function generateRawGeminiText(prompt: string, modelOverride?: stri
         },
         body: JSON.stringify({
           model: mappedModel,
-          messages: [{ role: "user", content: prompt }]
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 3000
         })
       });
 
@@ -1188,27 +1190,27 @@ export async function generateGeminiContentStream(
   onChunk: (text: string) => void
 ): Promise<string> {
   const apiKey = options.userGeminiKey || process.env.GEMINI_API_KEY;
-  const openRouterKey = options.userOpenRouterKey || process.env.OPENROUTER_API_KEY;
-  const model = options.modelOverride || "nvidia-nemotron-3-ultra-free";
+  const openRouterKey = options.userOpenRouterKey || process.env.OX_ALPHA_API_KEY || process.env.OPENROUTER_API_KEY;
+  const model = options.modelOverride || "ox-alpha";
   
-  const isClaudeOrGpt = model.includes("claude") || model.includes("gpt") || model.includes("oss") || model.includes("free") || model.includes("router");
+  const isClaudeOrGpt = model.includes("claude") || model.includes("gpt") || model.includes("ox-alpha") || model.includes("oss") || model.includes("free") || model.includes("router");
   const isDirectGeminiKeyValid = !!(apiKey && (apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.")));
 
   if (!openRouterKey && !isDirectGeminiKeyValid) {
-    throw new Error("API Keys are missing. Please configure a valid Google Gemini key (starting with AIzaSy or AQ.) or OpenRouter key.");
+    throw new Error("API Keys are missing. Please configure a valid OxAlpha API key or Google Gemini key.");
   }
 
   const systemInstruction = buildQuickSolvSystemInstruction(options);
 
   // Helper for Direct Gemini Stream
   const runDirectGeminiStream = async (): Promise<string> => {
-    let activeGoogleModel = "gemini-3.6-flash";
+    let activeGoogleModel = "gemini-2.5-flash";
     if (model.includes("pro")) {
-      activeGoogleModel = "gemini-3.1-pro-preview";
-    } else if (model.includes("gemini-3.6-flash")) {
-      activeGoogleModel = "gemini-3.6-flash";
-    } else if (model.includes("gemini-3.5-flash")) {
-      activeGoogleModel = "gemini-3.5-flash";
+      activeGoogleModel = "gemini-2.5-pro";
+    } else if (model.includes("2.0")) {
+      activeGoogleModel = "gemini-2.0-flash";
+    } else if (model.includes("1.5")) {
+      activeGoogleModel = "gemini-1.5-flash";
     }
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeGoogleModel}:streamGenerateContent?key=${apiKey}`;
 
@@ -1345,89 +1347,100 @@ export async function generateGeminiContentStream(
     }
     messages.push({ role: "user", content: userPrompt });
     
-    let mappedModel = "google/gemini-2.5-flash";
-    if (model.includes("pro")) {
-      mappedModel = "google/gemini-2.5-pro";
+    let requestedModel = "openai/gpt-4o";
+    if (model === "ox-alpha" || model.includes("ox-alpha") || model.includes("gpt")) {
+      requestedModel = "openai/gpt-4o";
+    } else if (model.includes("pro")) {
+      requestedModel = "google/gemini-2.5-pro";
     } else if (model.includes("claude-sonnet")) {
-      mappedModel = "anthropic/claude-3.5-sonnet";
-    } else if (model.includes("nvidia-nemotron-3-ultra-free")) {
-      mappedModel = "nvidia/nemotron-3-ultra-550b-a55b:free";
-    } else if (model.includes("gemma-4-31b-free")) {
-      mappedModel = "google/gemma-2-9b-it:free";
-    } else if (model.includes("free-models-router")) {
-      mappedModel = "openrouter/auto";
-    } else if (model.includes("gpt-oss-20b-free")) {
-      mappedModel = "meta-llama/llama-3-8b-instruct:free";
+      requestedModel = "anthropic/claude-3.5-sonnet";
     } else {
-      mappedModel = model;
+      requestedModel = model;
     }
     
-    const payload = {
-      model: mappedModel,
-      messages,
-      max_tokens: 4000,
-      stream: true
-    };
-    
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openRouterKey}`,
-        "HTTP-Referer": "https://quicksolv.edu",
-        "X-Title": "QuickSolv AI"
-      },
-      body: JSON.stringify(payload),
-      signal
-    });
-    
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`OpenRouter returned status ${response.status}: ${errText}`);
-    }
-    
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("Response body is not readable.");
-    }
-    
-    const decoder = new TextDecoder();
-    let accumulatedText = "";
-    let buffer = "";
-    
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    const candidateModels = Array.from(new Set([requestedModel, "openai/gpt-4o", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct:free"]));
+    let lastErrStr = "";
+
+    for (const activeModel of candidateModels) {
+      try {
+        const payload = {
+          model: activeModel,
+          messages,
+          max_tokens: 3000,
+          stream: true
+        };
         
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${openRouterKey}`,
+            "HTTP-Referer": "https://quicksolv.app",
+            "X-Title": "QuickSolv OxAlpha AI"
+          },
+          body: JSON.stringify(payload),
+          signal
+        });
         
-        for (const line of lines) {
-          const cleanedLine = line.trim();
-          if (!cleanedLine) continue;
-          if (cleanedLine === "data: [DONE]") continue;
-          if (cleanedLine.startsWith("data: ")) {
-            try {
-              const dataStr = cleanedLine.slice(6);
-              const parsed = JSON.parse(dataStr);
-              const content = parsed.choices?.[0]?.delta?.content || "";
-              if (content) {
-                accumulatedText += content;
-                onChunk(content);
+        if (!response.ok) {
+          const errText = await response.text();
+          lastErrStr = `OpenRouter (${activeModel}) status ${response.status}: ${errText}`;
+          console.warn(lastErrStr);
+          continue;
+        }
+        
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("Response body is not readable.");
+        }
+        
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        let buffer = "";
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            
+            for (const line of lines) {
+              const cleanedLine = line.trim();
+              if (!cleanedLine) continue;
+              if (cleanedLine === "data: [DONE]") continue;
+              if (cleanedLine.startsWith("data: ")) {
+                try {
+                  const dataStr = cleanedLine.slice(6);
+                  const parsed = JSON.parse(dataStr);
+                  const content = parsed.choices?.[0]?.delta?.content || "";
+                  if (content) {
+                    accumulatedText += content;
+                    onChunk(content);
+                  }
+                } catch (e) {
+                  // ignore JSON parse errors on partial stream lines
+                }
               }
-            } catch (e) {
-              // ignore JSON parse errors on partial stream lines
             }
           }
+        } finally {
+          reader.releaseLock();
         }
+        
+        if (accumulatedText) {
+          return accumulatedText;
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") throw err;
+        console.warn(`Stream attempt with model ${activeModel} failed:`, err);
+        lastErrStr = err.message;
       }
-    } finally {
-      reader.releaseLock();
     }
-    
-    return accumulatedText;
+
+    throw new Error(`OpenRouter OxAlpha streaming failed: ${lastErrStr || "All candidate models failed"}`);
   };
 
   const preferDirectGemini = isDirectGeminiKeyValid && (!openRouterKey || !isClaudeOrGpt);
