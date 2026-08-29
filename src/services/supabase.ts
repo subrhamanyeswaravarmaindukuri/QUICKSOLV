@@ -443,16 +443,17 @@ export const dbService = {
     saveDb(db);
   },
 
-  async toggleSaveConversation(convId: string, isSaved: boolean): Promise<void> {
+  async toggleSaveConversation(userId: string, convId: string, isSaved: boolean): Promise<void> {
     if (supabase) {
       const { error } = await supabase
         .from("conversations")
         .update({ is_saved: isSaved })
-        .eq("id", convId);
+        .eq("id", convId)
+        .eq("user_id", userId);
       if (error) throw error;
     } else {
       const db = getDb();
-      const conv = db.conversations.find(c => c.id === convId);
+      const conv = db.conversations.find(c => c.id === convId && c.user_id === userId);
       if (conv) {
         conv.is_saved = isSaved;
         saveDb(db);

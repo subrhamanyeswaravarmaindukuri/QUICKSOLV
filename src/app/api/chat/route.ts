@@ -30,11 +30,19 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { prompt, mode, image, pdf, conversationId, userId, userName, type, topic, subject, difficulty, numQuestions, userGeminiKey, userOpenRouterKey, modelOverride, requestId } = body;
 
-    const rateKey = userId || "anonymous-client";
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous-client";
+    const rateKey = userId || clientIp;
     if (isRateLimited(rateKey)) {
       return NextResponse.json(
         { error: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please wait a moment before sending another request." },
         { status: 429 }
+      );
+    }
+
+    if (prompt && typeof prompt === "string" && prompt.length > 50000) {
+      return NextResponse.json(
+        { error: "INVALID_INPUT", message: "Prompt exceeds maximum allowed size (50,000 characters)." },
+        { status: 400 }
       );
     }
 
@@ -481,7 +489,12 @@ Output MUST be a single, valid JSON object matching this schema:
 
       const encoder = new TextEncoder();
       let accumulatedText = "";
-      const requestSignal = request.signal;
+      let requestSignal: AbortSignal | undefined = undefined;
+      try {
+        requestSignal = request.signal;
+      } catch {
+        // Safe fallback for Next.js 16 internal request wrapper
+      }
 
       const stream = new ReadableStream({
         async start(controller) {

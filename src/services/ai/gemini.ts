@@ -1159,8 +1159,8 @@ export async function generateRawGeminiText(prompt: string, modelOverride?: stri
 
 export async function generateGeminiContentStream(
   options: GeminiOptions,
-  signal: AbortSignal,
-  onChunk: (text: string) => void
+  signal?: AbortSignal,
+  onChunk?: (text: string) => void
 ): Promise<string> {
   const apiKey = options.userGeminiKey || process.env.GEMINI_API_KEY;
   const openRouterKey = options.userOpenRouterKey || process.env.OX_ALPHA_API_KEY || process.env.OPENROUTER_API_KEY;
@@ -1237,7 +1237,7 @@ export async function generateGeminiContentStream(
             contents,
             systemInstruction: { parts: [{ text: systemInstruction }] }
           }),
-          signal
+          signal: signal || undefined
         });
 
         if (!response.ok) {
@@ -1277,7 +1277,7 @@ export async function generateGeminiContentStream(
                     const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
                     if (chunkText) {
                       accumulatedText += chunkText;
-                      onChunk(chunkText);
+                      if (onChunk) onChunk(chunkText);
                     }
                   } catch (e) {
                     // ignore parsing on partial structures
@@ -1374,7 +1374,7 @@ export async function generateGeminiContentStream(
             "X-Title": "QuickSolv OxAlpha AI"
           },
           body: JSON.stringify(payload),
-          signal
+          signal: signal || undefined
         });
         
         if (!response.ok) {
@@ -1413,7 +1413,7 @@ export async function generateGeminiContentStream(
                   const content = parsed.choices?.[0]?.delta?.content || "";
                   if (content) {
                     accumulatedText += content;
-                    onChunk(content);
+                    if (onChunk) onChunk(content);
                   }
                 } catch (e) {
                   // ignore JSON parse errors on partial stream lines

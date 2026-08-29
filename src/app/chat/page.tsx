@@ -1213,8 +1213,9 @@ function ChatContent() {
     const localGeminiKey = localStorage.getItem("quicksolv_gemini_api_key") || "";
     const localOpenRouterKey = localStorage.getItem("quicksolv_openrouter_api_key") || "";
     
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -1314,8 +1315,9 @@ function ChatContent() {
     const localOpenRouterKey = localStorage.getItem("quicksolv_openrouter_api_key") || "";
 
     setPlanIsGenerating(true);
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1894,7 +1896,8 @@ function ChatContent() {
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const response = await fetch("/api/chat", {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+      const response = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestPayload),
@@ -2043,6 +2046,7 @@ function ChatContent() {
 
     setIsGeneratingQuiz(true);
     setErrorMessage(null);
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
     try {
       const response = await fetch("/api/chat", {
@@ -3155,8 +3159,9 @@ function ChatContent() {
     const localGeminiKey = localStorage.getItem("quicksolv_gemini_api_key") || "";
     const localOpenRouterKey = localStorage.getItem("quicksolv_openrouter_api_key") || "";
 
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3193,8 +3198,9 @@ function ChatContent() {
     const localGeminiKey = localStorage.getItem("quicksolv_gemini_api_key") || "";
     const localOpenRouterKey = localStorage.getItem("quicksolv_openrouter_api_key") || "";
 
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "";
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch(`${apiBase}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3860,7 +3866,7 @@ function ChatContent() {
                         
                         <button
                           onClick={async () => {
-                            await dbService.toggleSaveConversation(conv.id, false);
+                            await dbService.toggleSaveConversation(user?.id || user?.email || "demo-user-123", conv.id, false);
                             setConversations(prev =>
                               prev.map(c => c.id === conv.id ? { ...c, is_saved: false } : c)
                             );
@@ -7368,7 +7374,7 @@ function ChatContent() {
                                             e.stopPropagation();
                                             if (!activeConvId) return;
                                             const nextSavedState = !isConvSaved;
-                                            await dbService.toggleSaveConversation(activeConvId, nextSavedState);
+                                            await dbService.toggleSaveConversation(user?.id || user?.email || "demo-user-123", activeConvId, nextSavedState);
                                             setConversations(prev =>
                                               prev.map(c => c.id === activeConvId ? { ...c, is_saved: nextSavedState } : c)
                                             );
