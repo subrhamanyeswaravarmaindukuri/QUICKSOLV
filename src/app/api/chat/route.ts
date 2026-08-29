@@ -6,22 +6,8 @@ import { tryResolveCalculator } from "@/services/ai/calculation";
 
 // Offline fallback templates have been fully removed to ensure 100% dynamic AI-generated responses.
 
-// In-memory rate limiter for server API protection
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-
-function isRateLimited(clientKey: string, limit = 30, windowMs = 60000): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(clientKey);
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(clientKey, { count: 1, resetTime: now + windowMs });
-    return false;
-  }
-  if (entry.count >= limit) {
-    return true;
-  }
-  entry.count += 1;
-  return false;
-}
+import { checkRateLimit } from "@/core/security/rateLimiter";
+import { createApiErrorResponse } from "@/core/security/apiErrors";
 
 export const dynamic = "force-static";
 
@@ -32,18 +18,17 @@ export async function POST(request: Request) {
 
     const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anonymous-client";
     const rateKey = userId || clientIp;
-    if (isRateLimited(rateKey)) {
-      return NextResponse.json(
-        { error: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please wait a moment before sending another request." },
-        { status: 429 }
-      );
+    const rateCheck = await checkRateLimit(rateKey, 30, 60000);
+    if (rateCheck.limited) {
+      return createApiErrorResponse("RATE_LIMIT_EXCEEDED", "Too many requests. Please wait a moment before sending another request.", {
+        "X-RateLimit-Limit": String(rateCheck.limit),
+        "X-RateLimit-Remaining": String(rateCheck.remaining),
+        "X-RateLimit-Reset": String(rateCheck.resetTime)
+      });
     }
 
     if (prompt && typeof prompt === "string" && prompt.length > 50000) {
-      return NextResponse.json(
-        { error: "INVALID_INPUT", message: "Prompt exceeds maximum allowed size (50,000 characters)." },
-        { status: 400 }
-      );
+      return createApiErrorResponse("INVALID_REQUEST", "Prompt exceeds maximum allowed size (50,000 characters).");
     }
 
     // Check if it is a quiz generation request
