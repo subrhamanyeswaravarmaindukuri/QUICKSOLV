@@ -1,18 +1,16 @@
 import { QuickSolvRequest, QuickSolvResponse, QuickSolvTaskType, QuickSolvToolExecutionRecord } from "./types";
 import { classifyQuickSolvRequest } from "./classifier";
-import { aiProviderRegistry } from "@/services/ai/providers/registry";
-import { GeminiStudyResponse } from "@/services/ai/gemini";
 import { quickSolvToolRegistry } from "./tools/registry";
 import { QuickSolvToolPermission } from "./tools/types";
+import { unifiedProviderRegistry } from "./providers/unifiedRegistry";
 
 export class QuickSolvIntelligenceRouter {
   /**
    * Processes a QuickSolv 1.0 Intelligence Layer request.
    * 1. Classifies task type if not specified.
-   * 2. Resolves target model engine via Provider Registry.
-   * 3. Executes required pre-pass tools safely with permission checks & timeouts.
-   * 4. Delegates core generation to AIProviderRegistry with automated fallback.
-   * 5. Wraps and returns normalized QuickSolvResponse.
+   * 2. Executes required pre-pass tools safely with permission checks & timeouts.
+   * 3. Delegates core generation to UnifiedProviderRegistry with bounded fallback.
+   * 4. Wraps and returns normalized QuickSolvResponse.
    */
   async processRequest(
     request: QuickSolvRequest,
@@ -85,14 +83,12 @@ export class QuickSolvIntelligenceRouter {
       }
     }
 
-    // 4. Resolve Target Provider & Execute via Registry
-    const targetModel = request.modelOverride || "auto";
-    const resolvedProviderId = aiProviderRegistry.resolveProviderId(targetModel);
-
-    const studyResponse: GeminiStudyResponse = await aiProviderRegistry.executeWithFallback({
+    // 4. Unified Provider Execution with Bounded Fallback
+    const providerResponse = await unifiedProviderRegistry.executeWithBoundedFallback({
       prompt: effectivePrompt,
+      taskType,
       mode: request.mode || "all-in-one",
-      modelOverride: targetModel,
+      modelOverride: request.modelOverride || "auto",
       userName: request.userName,
       history: request.history,
       image: request.image,
@@ -101,17 +97,13 @@ export class QuickSolvIntelligenceRouter {
       userOpenRouterKey: request.userOpenRouterKey
     });
 
-    const creditsCost = request.image ? 2 : 1;
-
     return {
-      studyResponse,
+      studyResponse: providerResponse.studyResponse,
       taskType,
-      selectedModel: targetModel === "auto" ? "ox-alpha/gpt-4o" : targetModel,
-      selectedProvider: resolvedProviderId,
+      selectedModel: providerResponse.selectedModel,
+      selectedProvider: providerResponse.selectedProvider,
       toolsExecuted,
-      usage: {
-        credits: creditsCost
-      }
+      usage: providerResponse.usage
     };
   }
 }

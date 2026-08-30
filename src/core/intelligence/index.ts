@@ -5,3 +5,6 @@ export * from "./tools/types";
 export * from "./tools/calculatorTool";
 export * from "./tools/patentSearchTool";
 export * from "./tools/registry";
+export * from "./providers/types";
+export * from "./providers/modelCatalog";
+export * from "./providers/unifiedRegistry";
