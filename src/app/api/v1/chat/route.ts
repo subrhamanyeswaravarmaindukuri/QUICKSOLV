@@ -95,27 +95,47 @@ export async function POST(request: Request) {
 
   const resolvedModel = model === "auto" ? "ox-alpha/gpt-4o" : model;
 
-  return NextResponse.json({
-    id: requestId,
-    object: "quicksolv.chat",
-    answer: primaryAnswer,
-    mode,
-    model: resolvedModel,
-    data: {
-      subject: studyResponse.subject || "General",
-      topic: studyResponse.topic || message.substring(0, 30),
-      difficulty: studyResponse.difficulty || "Medium",
-      easy_explanation: studyResponse.easy_explanation || "",
-      normal_solution: studyResponse.normal_solution || "",
-      formulas: studyResponse.formulas || [],
-      examples: studyResponse.examples || [],
-      exam_answer: studyResponse.exam_answer || {},
-      memory_trick: studyResponse.memory_trick || "",
-      important_points: studyResponse.important_points || [],
-      quiz: studyResponse.quiz || []
+  return NextResponse.json(
+    {
+      id: requestId,
+      object: "quicksolv.chat",
+      answer: primaryAnswer,
+      mode,
+      model: resolvedModel,
+      data: {
+        subject: studyResponse.subject || "General",
+        topic: studyResponse.topic || message.substring(0, 30),
+        difficulty: studyResponse.difficulty || "Medium",
+        easy_explanation: studyResponse.easy_explanation || "",
+        normal_solution: studyResponse.normal_solution || "",
+        formulas: studyResponse.formulas || [],
+        examples: studyResponse.examples || [],
+        exam_answer: studyResponse.exam_answer || {},
+        memory_trick: studyResponse.memory_trick || "",
+        important_points: studyResponse.important_points || [],
+        quiz: studyResponse.quiz || []
+      },
+      usage: {
+        credits: 1
+      }
     },
-    usage: {
-      credits: 1
+    {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type"
+      }
+    }
+  );
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Authorization, Content-Type"
     }
   });
 }

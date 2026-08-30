@@ -267,17 +267,37 @@ export async function POST(request: Request) {
     solutionObj.math_mode = studyResponse.math_mode;
   }
 
-  return NextResponse.json({
-    id: solveId,
-    object: "quicksolv.solution",
-    subject: studyResponse.subject || subject || "General",
-    topic: studyResponse.topic || problem.substring(0, 30),
-    difficulty: studyResponse.difficulty || "Medium",
-    answer: primaryAnswer,
-    solution: solutionObj,
-    verification,
-    usage: {
-      credits: creditsToCharge
+  return NextResponse.json(
+    {
+      id: solveId,
+      object: "quicksolv.solution",
+      subject: studyResponse.subject || subject || "General",
+      topic: studyResponse.topic || problem.substring(0, 30),
+      difficulty: studyResponse.difficulty || "Medium",
+      answer: primaryAnswer,
+      solution: solutionObj,
+      verification,
+      usage: {
+        credits: creditsToCharge
+      }
+    },
+    {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type"
+      }
+    }
+  );
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Authorization, Content-Type"
     }
   });
 }
