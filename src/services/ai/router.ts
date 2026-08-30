@@ -3,6 +3,7 @@ import { generateOxAlphaContent } from "./oxalpha";
 import { searchPatsnap, PatentResult } from "./patsnap";
 import { evaluateMathExpression, compareCalculations } from "./calculation";
 import { analyzeUserRequest } from "./intent";
+import { aiProviderRegistry } from "./providers/registry";
 
 export interface RouterOptions {
   prompt: string;
@@ -127,23 +128,12 @@ export async function routeStudyRequest(options: RouterOptions): Promise<GeminiS
     geminiOpts.image.highResolution = isDenseOrMath;
   }
 
-  // 1. Core AI Query
+  // 1. Core AI Query via Provider Registry (Modular Routing & Automated Fallback)
   let studyResponse: GeminiStudyResponse;
-  const targetModel = options.modelOverride || "ox-alpha";
-  if (targetModel === "ox-alpha") {
-    studyResponse = await generateOxAlphaContent({
-      prompt: effectivePrompt,
-      mode: options.mode,
-      modelOverride: targetModel,
-      apiKey: options.userOpenRouterKey || process.env.OX_ALPHA_API_KEY || process.env.OPENROUTER_API_KEY,
-      userName: options.userName,
-      history: options.history,
-      image: options.image,
-      pdf: options.pdf
-    });
-  } else {
-    studyResponse = await generateGeminiContent(geminiOpts);
-  }
+  studyResponse = await aiProviderRegistry.executeWithFallback({
+    ...options,
+    prompt: effectivePrompt
+  });
 
   // 2. Patent Research Connector (Patsnap Eureka Integration)
   if (needsPatent) {
