@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { generateApiKeySecret } from "@/core/security/apiKeyService";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -43,6 +44,7 @@ interface InMemoryDb {
     created_at: string;
   }>;
   userStreaks?: Record<string, { streak_count: number; streak_last_date: string; streak_history: string[] }>;
+  apiKeys?: any[];
 }
 
 // Clear all pre-populated mock history to allow a 100% clean and real user experience
@@ -57,7 +59,20 @@ let serverDb: InMemoryDb = {
   messages: mockMessages,
   savedAnswers: [],
   usage: {},
-  quizResults: []
+  quizResults: [],
+  apiKeys: [
+    {
+      id: "key_demo_123",
+      user_id: "demo-user-123",
+      name: "Test Demo Key",
+      key_prefix: "qs_test_demo",
+      key_hash: "mock_hash_123",
+      created_at: new Date().toISOString(),
+      rate_limit_rpm: 60,
+      monthly_credit_limit: 1000,
+      scopes: ["solve:read", "chat:write"]
+    }
+  ]
 };
 
 function getDb(): InMemoryDb {
@@ -524,5 +539,79 @@ export const dbService = {
       streak_history: history
     };
     saveDb(db);
+  },
+
+  async getApiKeys(userId: string): Promise<any[]> {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("api_keys")
+        .select("id, user_id, name, key_prefix, created_at, last_used_at, revoked_at, expires_at, rate_limit_rpm, monthly_credit_limit, scopes")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    } else {
+      const db = getDb();
+      if (!db.apiKeys) db.apiKeys = [];
+      return db.apiKeys
+        .filter((k: any) => k.user_id === userId)
+        .map(({ key_hash, ...safe }: any) => safe)
+        .sort((a: any, b: any) => b.created_at.localeCompare(a.created_at));
+    }
+  },
+
+  async createApiKey(userId: string, name: string, scopes: string[] = ["solve:read", "chat:write"]): Promise<{ keyRecord: any; plaintextKey: string }> {
+    const { plaintextKey, keyPrefix, keyHash } = generateApiKeySecret("qs_live_");
+    const newRecord: any = {
+      user_id: userId,
+      name: name || "New API Key",
+      key_prefix: keyPrefix,
+      key_hash: keyHash,
+      created_at: new Date().toISOString(),
+      rate_limit_rpm: 60,
+      monthly_credit_limit: 1000,
+      scopes: scopes && scopes.length > 0 ? scopes : ["solve:read", "chat:write"]
+    };
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from("api_keys")
+        .insert(newRecord)
+        .select("id, user_id, name, key_prefix, created_at, last_used_at, revoked_at, expires_at, rate_limit_rpm, monthly_credit_limit, scopes")
+        .single();
+      if (error) throw error;
+      return { keyRecord: data, plaintextKey };
+    } else {
+      const db = getDb();
+      if (!db.apiKeys) db.apiKeys = [];
+      const id = "key_" + Math.random().toString(36).substring(2, 11);
+      const fullRecord = { id, ...newRecord };
+      db.apiKeys.push(fullRecord);
+      saveDb(db);
+      const { key_hash, ...safeKeyRecord } = fullRecord;
+      return { keyRecord: safeKeyRecord, plaintextKey };
+    }
+  },
+
+  async revokeApiKey(userId: string, keyId: string): Promise<boolean> {
+    const revokedAt = new Date().toISOString();
+    if (supabase) {
+      const { error } = await supabase
+        .from("api_keys")
+        .update({ revoked_at: revokedAt })
+        .eq("id", keyId)
+        .eq("user_id", userId);
+      return !error;
+    } else {
+      const db = getDb();
+      if (!db.apiKeys) db.apiKeys = [];
+      const key = db.apiKeys.find((k: any) => k.id === keyId && k.user_id === userId);
+      if (key) {
+        key.revoked_at = revokedAt;
+        saveDb(db);
+        return true;
+      }
+      return false;
+    }
   }
 };
