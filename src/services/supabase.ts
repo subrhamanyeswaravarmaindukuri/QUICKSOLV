@@ -113,7 +113,7 @@ export const dbService = {
     }
   },
 
-  async incrementUsage(userId: string): Promise<number> {
+  async incrementUsage(userId: string, amount: number = 1): Promise<number> {
     const currentMonth = new Date().toISOString().substring(0, 7);
     
     if (supabase) {
@@ -127,23 +127,23 @@ export const dbService = {
       if (existing) {
         const { data } = await supabase
           .from("usage")
-          .update({ count: existing.count + 1 })
+          .update({ count: existing.count + amount })
           .eq("id", existing.id)
           .select("count")
           .single();
-        return data?.count || existing.count + 1;
+        return data?.count || existing.count + amount;
       } else {
         const { data } = await supabase
           .from("usage")
-          .insert({ user_id: userId, month: currentMonth, count: 1 })
+          .insert({ user_id: userId, month: currentMonth, count: amount })
           .select("count")
           .single();
-        return data?.count || 1;
+        return data?.count || amount;
       }
     } else {
       const db = getDb();
       if (!db.usage[userId]) db.usage[userId] = {};
-      const count = (db.usage[userId][currentMonth] || 0) + 1;
+      const count = (db.usage[userId][currentMonth] || 0) + amount;
       db.usage[userId][currentMonth] = count;
       saveDb(db);
       return count;
