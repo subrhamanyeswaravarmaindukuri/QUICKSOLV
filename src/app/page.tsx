@@ -3,20 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/services/firebase";
+import { auth, saveFirebaseUserData } from "@/services/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Upload, Clipboard, ArrowRight, Send, Star, GraduationCap, MoreHorizontal, Lightbulb, Zap } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [promptInput, setPromptInput] = useState("");
 
   useEffect(() => {
-    // Check long-term Firebase session
+    // Listen to Firebase Auth state
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        setIsLoggedIn(true);
+        saveFirebaseUserData(user);
         const userObj = {
           id: user.uid,
           email: user.email || "user@quicksolv.edu",
@@ -24,23 +23,14 @@ export default function Home() {
           photoURL: user.photoURL
         };
         localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
-      } else {
-        const saved = localStorage.getItem("snaptutor_user");
-        if (saved) {
-          setIsLoggedIn(true);
-        }
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleAction = () => {
-    if (isLoggedIn) {
-      router.push("/chat");
-    } else {
-      router.push("/login");
-    }
+  const handleOpenAuth = () => {
+    router.push("/login");
   };
 
   return (
@@ -59,17 +49,17 @@ export default function Home() {
           </Link>
           <div className="flex items-center space-x-6">
             <Link
-              href={isLoggedIn ? "/chat" : "/login"}
+              href="/login"
               className="text-sm font-semibold text-gray-700 hover:text-[#4A2711] transition duration-200"
             >
-              {isLoggedIn ? "Go to App" : "Log in"}
+              Sign in
             </Link>
-            <button
-              onClick={handleAction}
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-[#4A2711] hover:bg-[#5c3216] rounded-lg transition duration-200 shadow-md shadow-[#4A2711]/10 cursor-pointer"
+            <Link
+              href="/login"
+              className="px-5 py-2.5 text-sm font-semibold text-white bg-[#4A2711] hover:bg-[#5c3216] rounded-lg transition duration-200 shadow-md shadow-[#4A2711]/10"
             >
-              {isLoggedIn ? "Open Dashboard" : "Get Started Free"}
-            </button>
+              Get Started Free
+            </Link>
           </div>
         </div>
       </header>
@@ -105,7 +95,7 @@ export default function Home() {
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={handleAction}
+                  onClick={handleOpenAuth}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5 text-gray-400" />
@@ -113,7 +103,7 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleAction}
+                  onClick={handleOpenAuth}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   <Clipboard className="w-3.5 h-3.5 text-gray-400" />
@@ -129,7 +119,7 @@ export default function Home() {
                   <option>Research Mode</option>
                 </select>
                 <button
-                  onClick={handleAction}
+                  onClick={handleOpenAuth}
                   className="w-8 h-8 rounded-lg bg-[#4A2711] hover:bg-[#5c3216] text-white flex items-center justify-center shadow-sm transition cursor-pointer"
                 >
                   <Send className="w-4 h-4 transform rotate-45 -translate-x-0.5 translate-y-0.5 fill-white text-[#4A2711]" />
@@ -140,13 +130,13 @@ export default function Home() {
 
           {/* Large CTA Button */}
           <div className="space-y-2">
-            <button
-              onClick={handleAction}
+            <Link
+              href="/login"
               className="w-full h-12 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition duration-200 shadow-lg shadow-[#4A2711]/15 transform hover:-translate-y-0.5 text-sm md:text-base cursor-pointer"
             >
-              {isLoggedIn ? "Open QuickSolv Dashboard" : "Get Started Free"}
+              Get Started Now
               <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
-            </button>
+            </Link>
             <div className="text-center text-[11px] text-gray-450">
               No credit card required
             </div>

@@ -12,6 +12,13 @@ import {
   browserLocalPersistence,
   User as FirebaseUser
 } from "firebase/auth";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  serverTimestamp
+} from "firebase/firestore";
 
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyBk6F2blu1z9QL90lPau_PH_QN051BiEZw",
@@ -26,6 +33,7 @@ export const firebaseConfig = {
 // Initialize Firebase App instance safely for SSR & client
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
 googleProvider.setCustomParameters({
@@ -39,14 +47,47 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Store user details in Firebase Firestore database
+export const saveFirebaseUserData = async (user: FirebaseUser) => {
+  if (!user || !user.uid) return;
+  try {
+    const userRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userRef);
+
+    const userData = {
+      uid: user.uid,
+      email: user.email || "",
+      displayName: user.displayName || user.email?.split("@")[0] || "QuickSolv Student",
+      photoURL: user.photoURL || "",
+      provider: user.providerData[0]?.providerId || "firebase",
+      lastLogin: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    if (!userDoc.exists()) {
+      await setDoc(userRef, {
+        ...userData,
+        createdAt: serverTimestamp(),
+        tier: "FREE",
+        credits: 150
+      }, { merge: true });
+    } else {
+      await setDoc(userRef, userData, { merge: true });
+    }
+  } catch (err) {
+    console.warn("Firebase Firestore user sync notice:", err);
+  }
+};
+
 // Helper for Real Firebase Email/Password Login with Auto-Registration Fallback
 export const loginWithFirebaseEmail = async (email: string, pass: string) => {
   const cleanEmail = email.trim();
   const cleanPassword = pass.trim();
 
+  let user: FirebaseUser | null = null;
   try {
     const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-    return userCredential.user;
+    user = userCredential.user;
   } catch (error: any) {
     // If account doesn't exist yet, attempt automatic creation
     if (
@@ -56,20 +97,27 @@ export const loginWithFirebaseEmail = async (email: string, pass: string) => {
     ) {
       try {
         const createCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-        return createCredential.user;
+        user = createCredential.user;
       } catch (createErr: any) {
         throw createErr;
       }
+    } else {
+      throw error;
     }
-    throw error;
   }
+
+  if (user) {
+    await saveFirebaseUserData(user);
+  }
+  return user;
 };
 
 // Helper for Real Firebase Google OAuth Login
 export const loginWithFirebaseGoogle = async () => {
+  let user: FirebaseUser | null = null;
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    user = result.user;
   } catch (error: any) {
     // Popup fallback to redirect mode if popups are blocked on mobile browsers
     if (error.code === "auth/popup-blocked" || error.code === "auth/popup-closed-by-user") {
@@ -78,6 +126,11 @@ export const loginWithFirebaseGoogle = async () => {
     }
     throw error;
   }
+
+  if (user) {
+    await saveFirebaseUserData(user);
+  }
+  return user;
 };
 
 // Helper to sign out
