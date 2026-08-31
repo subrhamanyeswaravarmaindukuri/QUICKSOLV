@@ -1,11 +1,15 @@
 import { QuickSolvWorkflowResult } from "../workflows/types";
 import { QuickSolvQualityCheckResult } from "./types";
+import { QuickSolvResponseStrategyRequirements } from "../response/types";
 
 export class QuickSolvQualityGate {
   /**
-   * Performs deterministic quality & security checks on workflow execution result.
+   * Performs deterministic quality, security & completeness checks on workflow execution result.
    */
-  validatePayload(result: QuickSolvWorkflowResult): QuickSolvQualityCheckResult {
+  validatePayload(
+    result: QuickSolvWorkflowResult,
+    strategyReqs?: QuickSolvResponseStrategyRequirements
+  ): QuickSolvQualityCheckResult {
     const reasons: string[] = [];
 
     if (!result || !result.studyResponse) {
@@ -38,7 +42,7 @@ export class QuickSolvQualityGate {
       reasons.push("Raw internal stack trace detected in response content.");
     }
 
-    // 3. Response Content Presence Check
+    // 3. Response Content & Completeness Check
     const mainText =
       result.studyResponse.quick_answer ||
       result.studyResponse.easy_explanation ||
@@ -49,7 +53,14 @@ export class QuickSolvQualityGate {
       reasons.push("Response body contains no usable explanation text.");
     }
 
-    // 4. Payload Size Check (max 5MB)
+    // 4. Minimum Length Check based on Response Strategy
+    if (strategyReqs && strategyReqs.minContentLength) {
+      if (mainText.trim().length < strategyReqs.minContentLength) {
+        reasons.push(`Response content length (${mainText.trim().length}) is below required strategy threshold (${strategyReqs.minContentLength}).`);
+      }
+    }
+
+    // 5. Payload Size Check (max 5MB)
     if (jsonStr.length > 5 * 1024 * 1024) {
       reasons.push("Payload size exceeds maximum allowable response threshold (5MB).");
     }

@@ -4,6 +4,8 @@ import { quickSolvWorkflowRegistry } from "../workflows/workflowRegistry";
 import { quickSolvQualityGate } from "./qualityGate";
 import { quickSolvModelCatalog } from "../providers/modelCatalog";
 import { QuickSolvExecutionContext, QuickSolvMultimodalValidationResult } from "./types";
+import { quickSolvResponseDetector } from "../response/detector";
+import { quickSolvResponseStrategyManager } from "../response/strategy";
 
 export class QuickSolvExecutionEngine {
   private readonly DEFAULT_TIMEOUT_MS = 30000;
@@ -13,7 +15,7 @@ export class QuickSolvExecutionEngine {
   private readonly MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
   /**
-   * Executes a QuickSolv request through the hardened Step 5 AI Execution Engine.
+   * Executes a QuickSolv request through the hardened Step 6 Response Intelligence Engine.
    */
   async execute(
     request: QuickSolvRequest,
@@ -26,7 +28,7 @@ export class QuickSolvExecutionEngine {
     };
 
     try {
-      // 1. Input & Multimodal Payload Validation
+      // 1. Multimodal & Input Validation
       this.validateMultimodalPayload(request);
 
       // 2. Model Override Safety Check
@@ -37,15 +39,17 @@ export class QuickSolvExecutionEngine {
       // 3. Bounded Context Truncation
       const boundedRequest = this.applyBoundedContext(request);
 
-      // 4. Task Classification & Workflow Resolution
-      const taskType: QuickSolvTaskType =
-        boundedRequest.taskType ||
-        this.classifyRequest(boundedRequest.prompt, boundedRequest);
+      // 4. Intent Depth & Response Mode Detection (Step 6 Intelligence)
+      const intentDepth = quickSolvResponseDetector.detectIntentDepth(boundedRequest);
+      const strategyReqs = quickSolvResponseStrategyManager.resolveStrategy(intentDepth);
 
+      const taskType: QuickSolvTaskType = intentDepth.taskType;
       context.taskType = taskType;
+
+      // 5. Workflow Resolution
       const workflow = quickSolvWorkflowRegistry.getWorkflow(taskType);
 
-      // 5. Safe Workflow Execution with Timeout Protection (30s)
+      // 6. Safe Workflow Execution with Timeout Protection (30s)
       const workflowPromise = workflow.execute(boundedRequest, userPermission);
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
@@ -59,8 +63,8 @@ export class QuickSolvExecutionEngine {
       context.selectedModel = workflowResult.selectedModel;
       context.selectedProvider = workflowResult.selectedProvider;
 
-      // 6. Response Quality Gate Validation
-      const qualityCheck = quickSolvQualityGate.validatePayload(workflowResult);
+      // 7. Response Quality Gate & Completeness Validation
+      const qualityCheck = quickSolvQualityGate.validatePayload(workflowResult, strategyReqs);
       if (!qualityCheck.passed) {
         throw new Error(`Quality Gate Failure: ${qualityCheck.reasons.join("; ")}`);
       }
@@ -68,7 +72,7 @@ export class QuickSolvExecutionEngine {
       context.latencyMs = Math.round(performance.now() - context.startTime);
       context.success = true;
 
-      // 7. Safe Internal Structured Logging
+      // 8. Safe Internal Structured Logging
       this.logExecutionMetadata(context);
 
       return {
@@ -80,6 +84,9 @@ export class QuickSolvExecutionEngine {
         usage: workflowResult.usage,
         metadata: {
           correlationId: context.correlationId,
+          responseMode: intentDepth.responseMode,
+          verbosityLevel: intentDepth.verbosityLevel,
+          requiresTools: intentDepth.requiresTools,
           reasoningStrategy: workflowResult.reasoningStrategy,
           qualityGatePassed: true,
           latencyMs: context.latencyMs,
@@ -96,18 +103,12 @@ export class QuickSolvExecutionEngine {
     }
   }
 
-  /**
-   * Generates a unique request correlation ID.
-   */
   private generateCorrelationId(): string {
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 1000000).toString(36);
     return `qs_req_${timestamp}_${random}`;
   }
 
-  /**
-   * Validates multimodal image/PDF attachments against size & MIME constraints.
-   */
   private validateMultimodalPayload(request: QuickSolvRequest): QuickSolvMultimodalValidationResult {
     if (request.image) {
       const validMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -131,9 +132,6 @@ export class QuickSolvExecutionEngine {
     return { valid: true };
   }
 
-  /**
-   * Validates requested model override against catalog.
-   */
   private validateModelOverride(modelOverride: string): void {
     const safeModelSlugs = [
       "auto",
@@ -150,9 +148,6 @@ export class QuickSolvExecutionEngine {
     }
   }
 
-  /**
-   * Bounds prompt length & conversation history turns.
-   */
   private applyBoundedContext(request: QuickSolvRequest): QuickSolvRequest {
     let boundedPrompt = request.prompt;
     if (boundedPrompt.length > this.MAX_PROMPT_LENGTH) {
@@ -171,23 +166,6 @@ export class QuickSolvExecutionEngine {
     };
   }
 
-  /**
-   * Fallback prompt task classifier.
-   */
-  private classifyRequest(prompt: string, req: QuickSolvRequest): QuickSolvTaskType {
-    if (req.image) return "VISION";
-    if (req.pdf) return "DOCUMENT";
-    const lower = prompt.toLowerCase();
-    if (lower.includes("solve") || /\d+[\s+\-*/^]+\d+/.test(prompt)) return "MATH";
-    if (lower.includes("code") || lower.includes("script") || lower.includes("function")) return "CODING";
-    if (lower.includes("patent") || lower.includes("prior art")) return "RESEARCH";
-    if (lower.includes("explain") || lower.includes("what is")) return "STUDY";
-    return "GENERAL_CHAT";
-  }
-
-  /**
-   * Categorizes errors for structured logging.
-   */
   private categorizeError(err: any): string {
     const msg = String(err.message || err);
     if (msg.includes("timed out")) return "TIMEOUT";
@@ -199,9 +177,6 @@ export class QuickSolvExecutionEngine {
     return "PROVIDER_ERROR";
   }
 
-  /**
-   * Sanitizes error message so API keys, tokens, or URLs are never exposed.
-   */
   private sanitizeError(err: any): Error {
     const origMsg = String(err.message || err);
     let sanitizedMsg = origMsg
@@ -213,9 +188,6 @@ export class QuickSolvExecutionEngine {
     return new Error(sanitizedMsg);
   }
 
-  /**
-   * Structured internal metadata logging without sensitive contents.
-   */
   private logExecutionMetadata(context: QuickSolvExecutionContext, error?: any): void {
     const logObj = {
       correlationId: context.correlationId,
