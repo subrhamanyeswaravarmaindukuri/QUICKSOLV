@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { routeStudyRequest } from "@/services/ai/router";
 import { dbService } from "@/services/supabase";
+import { quickSolvIntelligenceRouter } from "@/core/intelligence/intelligenceRouter";
+import { quickSolvEntitlementService } from "@/core/billing/entitlementService";
+import { quickSolvCreditDeduction } from "@/core/billing/creditDeduction";
 import { generateGeminiContent, generateRawGeminiText, generateGeminiContentStream } from "@/services/ai/gemini";
 import { tryResolveCalculator } from "@/services/ai/calculation";
-
-// Offline fallback templates have been fully removed to ensure 100% dynamic AI-generated responses.
 
 import { checkRateLimit } from "@/core/security/rateLimiter";
 import { createApiErrorResponse } from "@/core/security/apiErrors";
@@ -31,28 +31,33 @@ export async function POST(request: Request) {
       return createApiErrorResponse("INVALID_REQUEST", "Prompt exceeds maximum allowed size (50,000 characters).");
     }
 
+    const activeUserId = userId || "demo-user-123";
+
+    // 1. Authoritative Server-Side Entitlement Check
+    const userEntitlement = await quickSolvEntitlementService.getEntitlement(activeUserId);
+    if (userEntitlement.creditMode === "FINITE" && userEntitlement.creditsRemaining !== null && userEntitlement.creditsRemaining <= 0) {
+      return NextResponse.json(
+        {
+          error: "INSUFFICIENT_CREDITS",
+          message: `You have reached your monthly credit limit (${userEntitlement.monthlyCreditLimit} credits). Upgrade your plan to Plus or Pro for additional credits.`,
+          entitlement: userEntitlement
+        },
+        { status: 403 }
+      );
+    }
+
     // Check if it is a quiz generation request
     if (type === "quiz-generate") {
       if (!topic) {
         return NextResponse.json({ error: "Topic is required for quiz generation" }, { status: 400 });
       }
 
-      const activeUserId = userId || "demo-user-123";
-
-      // 1. Check Usage Limits
-      const usage = await dbService.checkUsageLimit(activeUserId);
-      if (usage.count >= usage.max) {
-        return NextResponse.json(
-          {
-            error: "Usage limit exceeded",
-            message: "You have used your 10 free study credits for this month. Upgrade to Pro for unlimited access."
-          },
-          { status: 403 }
-        );
-      }
-
-      // Increment usage count
-      await dbService.incrementUsage(activeUserId);
+      await quickSolvCreditDeduction.deductCredits({
+        correlationId: `quiz_gen_${Date.now()}`,
+        userId: activeUserId,
+        creditsToDeduct: 1,
+        requestType: "tool"
+      });
 
       const dateSalt = new Date().toDateString();
       const userSalt = activeUserId;
@@ -62,12 +67,10 @@ The questions must be highly original, challenging, and unique to this specific 
 The quiz must contain exactly ${numQuestions || 5} questions.
 For each question, provide 4 options, a single correct answer (which must exactly match one of the options), and a detailed explanation of why it is correct.
 
-IMPORTANT: Make sure all the questions are unique, challenging, and randomly generated. Even if this topic has been requested before, vary the questions completely so they are different and never repeat. Focus on interesting and deep concepts appropriate for the '${difficulty || "Easy"}' difficulty level.
-
 Output MUST be a single, valid JSON object matching this schema:
 {
-  "title": "Quiz Title (e.g., Photosynthesis Basics)",
-  "subject": "Subject Name (e.g., Biology)",
+  "title": "Quiz Title",
+  "subject": "Subject Name",
   "questions": [
     {
       "question": "Question text",
@@ -113,19 +116,12 @@ Output MUST be a single, valid JSON object matching this schema:
         return NextResponse.json({ error: "Subject and Topic are required for study plan generation" }, { status: 400 });
       }
 
-      const activeUserId = userId || "demo-user-123";
-
-      // 1. Check Usage Limits
-      const usage = await dbService.checkUsageLimit(activeUserId);
-      if (usage.count >= usage.max) {
-        return NextResponse.json(
-          {
-            error: "Usage limit exceeded",
-            message: "You have used your 10 free study credits for this month. Upgrade to Pro for unlimited access."
-          },
-          { status: 403 }
-        );
-      }
+      await quickSolvCreditDeduction.deductCredits({
+        correlationId: `study_plan_${Date.now()}`,
+        userId: activeUserId,
+        creditsToDeduct: 1,
+        requestType: "tool"
+      });
 
       const planPrompt = `Generate a highly organized, day-by-day 7-day study plan for the subject "${subject}" and topic "${topic}" with difficulty level "${difficulty || "Medium"}".
 For each of the 7 days, provide a day title, a brief description, and exactly 2 tasks to complete.
@@ -150,7 +146,7 @@ Output MUST be a single, valid JSON object matching this schema:
       try {
         const planResponse = await generateGeminiContent({
           prompt: planPrompt,
-          mode: "all-in-one", // Will output dynamic structured JSON matching study schema
+          mode: "all-in-one",
           userGeminiKey,
           userOpenRouterKey
         });
@@ -183,26 +179,15 @@ Output MUST be a single, valid JSON object matching this schema:
         return NextResponse.json({ error: "Note content is required for summarization" }, { status: 400 });
       }
 
-      const activeUserId = userId || "demo-user-123";
+      await quickSolvCreditDeduction.deductCredits({
+        correlationId: `note_sum_${Date.now()}`,
+        userId: activeUserId,
+        creditsToDeduct: 1,
+        requestType: "tool"
+      });
 
-      // Usage Limits Check
-      const usage = await dbService.checkUsageLimit(activeUserId);
-      if (usage.count >= usage.max) {
-        return NextResponse.json(
-          {
-            error: "Usage limit exceeded",
-            message: "You have used your 10 free study credits for this month. Upgrade to Pro for unlimited access."
-          },
-          { status: 403 }
-        );
-      }
-
-      await dbService.incrementUsage(activeUserId);
-
-      const summarizePrompt = `You are a world-class study tutor. Summarize these student notes in a highly structured, concise, and educational manner.
-Provide key takeaways, bullet points, and bulleted lists.
-Use appropriate emojis for readability.
-Here are the notes:
+      const summarizePrompt = `You are QuickSolv 1.0 AI tutor. Summarize these student notes in a highly structured, concise, and educational manner.
+Target ~800 characters of high information density prioritizing direct answers, key takeaways, and concise bullet points.
 Title: "${noteTitle || "Untitled Note"}"
 Content:
 """
@@ -235,25 +220,14 @@ ${noteContent}
         return NextResponse.json({ error: "Note content is required for explanation" }, { status: 400 });
       }
 
-      const activeUserId = userId || "demo-user-123";
+      await quickSolvCreditDeduction.deductCredits({
+        correlationId: `note_exp_${Date.now()}`,
+        userId: activeUserId,
+        creditsToDeduct: 1,
+        requestType: "tool"
+      });
 
-      // Usage Limits Check
-      const usage = await dbService.checkUsageLimit(activeUserId);
-      if (usage.count >= usage.max) {
-        return NextResponse.json(
-          {
-            error: "Usage limit exceeded",
-            message: "You have used your 10 free study credits for this month. Upgrade to Pro for unlimited access."
-          },
-          { status: 403 }
-        );
-      }
-
-      await dbService.incrementUsage(activeUserId);
-
-      const explainPrompt = `You are a world-class study tutor. Read the following student notes and explain the core concepts, difficult terminology, and complex terms in an incredibly simple, intuitive, and easy-to-understand manner.
-Use relatable real-world analogies, step-by-step breakdowns, and clean formatting.
-Here are the notes:
+      const explainPrompt = `You are QuickSolv 1.0 AI tutor. Explain core concepts from these student notes simply and concisely (~800 characters target, high information density).
 Title: "${noteTitle || "Untitled Note"}"
 Content:
 """
@@ -279,171 +253,30 @@ ${noteContent}
       }
     }
 
-    // Check if it is a note quiz generation request
-    if (type === "note-quiz-generate") {
-      const { noteTitle, noteContent } = body;
-      if (!noteContent) {
-        return NextResponse.json({ error: "Note content is required for quiz generation" }, { status: 400 });
-      }
-
-      const activeUserId = userId || "demo-user-123";
-
-      // Usage Limits Check
-      const usage = await dbService.checkUsageLimit(activeUserId);
-      if (usage.count >= usage.max) {
-        return NextResponse.json(
-          {
-            error: "Usage limit exceeded",
-            message: "You have used your 10 free study credits for this month. Upgrade to Pro for unlimited access."
-          },
-          { status: 403 }
-        );
-      }
-
-      await dbService.incrementUsage(activeUserId);
-
-      const quizPrompt = `Generate a highly accurate 5-question educational quiz directly based on the information in the following notes.
-For each question, provide 4 options, a single correct answer (which must exactly match one of the options), and a detailed explanation of why it is correct.
-Notes Title: "${noteTitle || "Untitled Note"}"
-Notes Content:
-"""
-${noteContent}
-"""
-Output MUST be a single, valid JSON object matching this schema:
-{
-  "title": "Quiz on: ${noteTitle || "Custom Notes"}",
-  "subject": "Biology",
-  "questions": [
-    {
-      "question": "Question text",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correct_answer": "Option A (must exactly match one of the options)",
-      "explanation": "Explanation text"
-    }
-  ]
-}`;
-
-      try {
-        const quizResponse = await generateGeminiContent({
-          prompt: quizPrompt,
-          mode: "quiz",
-          userGeminiKey,
-          userOpenRouterKey
-        });
-
-        return NextResponse.json({
-          success: true,
-          quiz: quizResponse
-        });
-      } catch (aiErr: any) {
-        return NextResponse.json(
-          {
-            error: "API_FAILURE",
-            message: "QuickSolv couldn't generate a quiz from your notes right now. Please try again.",
-            devError: aiErr?.message
-          },
-          { status: 500 }
-        );
-      }
-    }
-
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    // Default or fallback user ID
-    const activeUserId = userId || "demo-user-123";
-
-    // 1. Check Usage Limits
-    const usage = await dbService.checkUsageLimit(activeUserId);
-    if (usage.count >= usage.max) {
-      return NextResponse.json(
-        {
-          error: "Usage limit exceeded",
-          message: "You have used your 10 free study credits for this month. Upgrade to Pro for unlimited access."
-        },
-        { status: 403 }
-      );
-    }
-
-    // 2. Perform AI Routing and processing
+    // 2. Perform QuickSolv 1.0 Execution Engine Request Processing
     let activeMode = mode || "all-in-one";
 
-    // Auto-detect hackathon context from problem statement keywords in the prompt (only if in all-in-one mode)
+    // Auto-detect hackathon context from problem statement keywords in the prompt
     if (activeMode === "all-in-one") {
       if (prompt.toLowerCase().includes("problem statement") || prompt.toLowerCase().includes("hackathon") || prompt.toLowerCase().includes("project")) {
         activeMode = "hackathon";
       }
     }
 
-    // Load conversation history to retain context if we're in the same chat
+    // Load conversation history to retain context
     let historyList: any[] = [];
     if (conversationId) {
       try {
         historyList = await dbService.getMessages(conversationId);
-        const lowerPrompt = prompt.toLowerCase();
-        
-        // If user explicitly asks to exit hackathon or switch modes
-        const isExitRequest = lowerPrompt.includes("not for hackathon") || 
-                              lowerPrompt.includes("not a hackathon") || 
-                              lowerPrompt.includes("exit hackathon") ||
-                              lowerPrompt.includes("normal mode") ||
-                              lowerPrompt.includes("study notes");
-
-        if (isExitRequest) {
-          activeMode = "all-in-one";
-        } else if (activeMode === "all-in-one") {
-          // Check if previous user query or assistant response was hackathon related
-          const hasHackathonInHistory = historyList.some((m: any) => {
-            if (m.role === "user" && m.mode === "hackathon") return true;
-            if (m.role === "assistant") {
-              try {
-                const parsed = JSON.parse(m.content);
-                return !!parsed.hackathon_mode;
-              } catch {
-                return false;
-              }
-            }
-            return false;
-          });
-
-          if (hasHackathonInHistory) {
-            activeMode = "hackathon";
-          }
-        }
       } catch (historyErr) {
-        console.warn("Failed to load conversation history: ", historyErr);
+        console.warn("Failed to load conversation history:", historyErr);
       }
     }
 
-    // Auto-detect other modes if activeMode is "all-in-one"
-    if (activeMode === "all-in-one") {
-      const lowerPrompt = prompt.toLowerCase();
-      if (lowerPrompt.includes("research") || lowerPrompt.includes("paper") || lowerPrompt.includes("citation")) {
-        activeMode = "research";
-      } else if (lowerPrompt.includes("quiz") || lowerPrompt.includes("test me") || lowerPrompt.includes("mcq") || lowerPrompt.includes("question paper")) {
-        activeMode = "quiz";
-      } else if (lowerPrompt.includes("notes") || lowerPrompt.includes("summary") || lowerPrompt.includes("revision") || lowerPrompt.includes("explain in simple words")) {
-        activeMode = "notes";
-      } else if (lowerPrompt.includes("code") || lowerPrompt.includes("debug") || lowerPrompt.includes("compile") || lowerPrompt.includes("bug") || lowerPrompt.includes("refactor") || lowerPrompt.includes("program")) {
-        activeMode = "coding";
-      } else if (lowerPrompt.includes("math") || lowerPrompt.includes("equation") || lowerPrompt.includes("solve") || lowerPrompt.includes("calculation") || lowerPrompt.includes("calculate") || lowerPrompt.includes("fraction")) {
-        activeMode = "math";
-      } else if (lowerPrompt.includes("compare") || lowerPrompt.includes("versus") || lowerPrompt.includes("vs ") || lowerPrompt.includes("difference between")) {
-        activeMode = "comparison";
-      } else if (lowerPrompt.includes("how to") || lowerPrompt.includes("step by step") || lowerPrompt.includes("guide") || lowerPrompt.includes("manual") || lowerPrompt.includes("instructions")) {
-        activeMode = "how_to";
-      } else if (lowerPrompt.includes("ppt") || lowerPrompt.includes("slide") || lowerPrompt.includes("presentation") || lowerPrompt.includes("pitch deck") || lowerPrompt.includes("hackathon") || lowerPrompt.includes("mvp") || lowerPrompt.includes("project")) {
-        activeMode = "hackathon";
-      } else if (lowerPrompt.includes("business") || lowerPrompt.includes("startup") || lowerPrompt.includes("market") || lowerPrompt.includes("competitor") || lowerPrompt.includes("revenue") || lowerPrompt.includes("pricing") || lowerPrompt.includes("marketing")) {
-        activeMode = "business";
-      } else if (lowerPrompt.includes("career") || lowerPrompt.includes("interview") || lowerPrompt.includes("resume") || lowerPrompt.includes("job") || lowerPrompt.includes("linkedin") || lowerPrompt.includes("mock interview") || lowerPrompt.includes("lpa")) {
-        activeMode = "career";
-      } else if (lowerPrompt.includes("binary search") || lowerPrompt.includes("sorting") || lowerPrompt.includes("dsa") || lowerPrompt.includes("algorithm") || lowerPrompt.includes("tree") || lowerPrompt.includes("graph") || lowerPrompt.includes("linked list") || lowerPrompt.includes("recursion") || lowerPrompt.includes("sliding window")) {
-        activeMode = "dsa";
-      }
-    }
-    
     // Resolve dynamic tool calculations first
     const calcResult = tryResolveCalculator(prompt);
     let finalPrompt = prompt;
@@ -460,7 +293,6 @@ Output MUST be a single, valid JSON object matching this schema:
         activeConvId = conv.id;
       }
 
-      // Save original user message to database immediately
       await dbService.addMessage(
         activeConvId,
         "user",
@@ -469,8 +301,15 @@ Output MUST be a single, valid JSON object matching this schema:
         activeMode
       );
 
-      // Increment usage limit immediately
-      await dbService.incrementUsage(activeUserId);
+      // Deduct 1 credit for standard chat stream or 2 for vision stream
+      const isVision = !!image || !!pdf;
+      await quickSolvCreditDeduction.deductCredits({
+        correlationId: `chat_stream_${Date.now()}`,
+        userId: activeUserId,
+        creditsToDeduct: isVision ? 2 : 1,
+        requestType: isVision ? "vision" : "chat",
+        isMultimodal: isVision
+      });
 
       const encoder = new TextEncoder();
       let accumulatedText = "";
@@ -478,7 +317,7 @@ Output MUST be a single, valid JSON object matching this schema:
       try {
         requestSignal = request.signal;
       } catch {
-        // Safe fallback for Next.js 16 internal request wrapper
+        // Safe fallback
       }
 
       const stream = new ReadableStream({
@@ -556,21 +395,22 @@ Output MUST be a single, valid JSON object matching this schema:
       });
     }
 
-    let studyResponse;
+    // 3. Process via QuickSolv 1.0 Intelligence Engine Architecture
+    let engineResult;
     try {
-      studyResponse = await routeStudyRequest({
+      engineResult = await quickSolvIntelligenceRouter.processRequest({
         prompt: finalPrompt,
         mode: activeMode,
         image: image ? { mimeType: image.mimeType, data: image.data } : undefined,
         pdf: pdf ? { mimeType: pdf.mimeType, data: pdf.data } : undefined,
-        userGeminiKey,
-        userOpenRouterKey,
+        modelOverride: modelOverride || "auto",
         userName: userName || "",
         history: historyList,
-        modelOverride: modelOverride || "ox-alpha"
+        userGeminiKey,
+        userOpenRouterKey
       });
     } catch (aiErr: any) {
-      console.error("AI processing failed:", aiErr);
+      console.error("QuickSolv Intelligence Engine processing failed:", aiErr);
       return NextResponse.json(
         {
           error: "API_FAILURE",
@@ -580,15 +420,23 @@ Output MUST be a single, valid JSON object matching this schema:
       );
     }
 
-    // Increment usage count
-    await dbService.incrementUsage(activeUserId);
+    // Deduct 1 credit for standard request or 2 credits for vision request
+    const isVision = !!image || !!pdf;
+    const correlationId = engineResult.metadata?.correlationId || `qs_req_${Date.now()}`;
+    await quickSolvCreditDeduction.deductCredits({
+      correlationId,
+      userId: activeUserId,
+      creditsToDeduct: isVision ? 2 : 1,
+      requestType: isVision ? "vision" : "solve",
+      isMultimodal: isVision
+    });
 
-    // Save history to database/storage
+    // Save history to database
     let activeConvId = conversationId;
     if (!activeConvId) {
-      const title = studyResponse.topic || prompt.substring(0, 30);
+      const title = engineResult.studyResponse.topic || prompt.substring(0, 30);
       const description = prompt;
-      const subject = studyResponse.subject || "General";
+      const subject = engineResult.studyResponse.subject || "General";
       const conv = await dbService.createConversation(activeUserId, title, description, subject);
       activeConvId = conv.id;
     }
@@ -602,20 +450,24 @@ Output MUST be a single, valid JSON object matching this schema:
       activeMode
     );
 
-    // Save AI message (JSON-stringified)
+    // Save AI message
     await dbService.addMessage(
       activeConvId,
       "assistant",
-      JSON.stringify(studyResponse),
+      JSON.stringify(engineResult.studyResponse),
       undefined,
       activeMode
     );
 
+    const updatedEntitlement = await quickSolvEntitlementService.getEntitlement(activeUserId);
+
     return NextResponse.json({
       success: true,
       conversationId: activeConvId,
-      requestId: requestId || null,
-      response: studyResponse
+      requestId: requestId || correlationId,
+      response: engineResult.studyResponse,
+      metadata: engineResult.metadata,
+      entitlement: updatedEntitlement
     });
   } catch (err: any) {
     console.error("API Chat route failed:", err);
