@@ -83,14 +83,9 @@ function LoginContent() {
       if (err.code === "auth/invalid-email") msg = "Invalid email format.";
       if (err.code === "auth/weak-password") msg = "Password should be at least 6 characters.";
       if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-        msg = "Invalid email or password. Please verify your credentials or register.";
+        msg = "Invalid email or password. Please check your details or register a new account.";
       }
-      
-      // Fallback local resilience login if network is offline
-      const fallbackUser = { id: "fb_user_" + Math.random().toString(36).substring(2, 9), email: cleanEmail };
-      localStorage.setItem("snaptutor_user", JSON.stringify(fallbackUser));
-      setSuccessMsg("Logged in successfully!");
-      setTimeout(() => router.push(redirectUrl), 400);
+      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }
@@ -116,16 +111,14 @@ function LoginContent() {
         setTimeout(() => router.push(redirectUrl), 400);
       }
     } catch (err: any) {
-      console.warn("Firebase Google Auth notice:", err);
-      const googleUser = {
-        id: "user_google_" + Math.random().toString(36).substring(2, 11),
-        email: email.trim() || "subrhamanyeswaravarmaindukuri@gmail.com",
-        name: "Google User",
-        created_at: new Date().toISOString()
-      };
-      localStorage.setItem("snaptutor_user", JSON.stringify(googleUser));
-      setSuccessMsg("Logged in with Google!");
-      setTimeout(() => router.push(redirectUrl), 400);
+      console.warn("Firebase Google Auth error:", err);
+      let msg = err.message || "Google authentication failed. Please try again.";
+      if (err.code === "auth/unauthorized-domain") {
+        msg = "Domain not authorized in Firebase. Please add this domain to Firebase Console Authentication -> Authorized Domains.";
+      } else if (err.code === "auth/popup-closed-by-user") {
+        msg = "Google sign-in popup was closed before completing.";
+      }
+      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }
