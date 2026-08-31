@@ -6,16 +6,16 @@ import { quickSolvModelCatalog } from "../providers/modelCatalog";
 import { QuickSolvExecutionContext, QuickSolvMultimodalValidationResult } from "./types";
 import { quickSolvResponseDetector } from "../response/detector";
 import { quickSolvResponseStrategyManager } from "../response/strategy";
+import { quickSolvContextManager } from "../memory/contextManager";
 
 export class QuickSolvExecutionEngine {
   private readonly DEFAULT_TIMEOUT_MS = 30000;
   private readonly MAX_PROMPT_LENGTH = 20000;
-  private readonly MAX_HISTORY_TURNS = 20;
   private readonly MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
   private readonly MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
   /**
-   * Executes a QuickSolv request through the hardened Step 6 Response Intelligence Engine.
+   * Executes a QuickSolv request through the hardened Step 8 Memory & Response Intelligence Engine.
    */
   async execute(
     request: QuickSolvRequest,
@@ -36,10 +36,14 @@ export class QuickSolvExecutionEngine {
         this.validateModelOverride(request.modelOverride);
       }
 
-      // 3. Bounded Context Truncation
-      const boundedRequest = this.applyBoundedContext(request);
+      // 3. Bounded Context & Memory Management (Step 8)
+      const memoryResult = quickSolvContextManager.processContext(request.prompt, request.history);
+      const boundedRequest = this.applyBoundedContext({
+        ...request,
+        history: memoryResult.normalizedHistory
+      });
 
-      // 4. Intent Depth & Response Mode Detection (Step 6 Intelligence)
+      // 4. Intent Depth & Response Mode Detection (Step 6 & 8)
       const intentDepth = quickSolvResponseDetector.detectIntentDepth(boundedRequest);
       const strategyReqs = quickSolvResponseStrategyManager.resolveStrategy(intentDepth);
 
@@ -87,6 +91,7 @@ export class QuickSolvExecutionEngine {
           responseMode: intentDepth.responseMode,
           verbosityLevel: intentDepth.verbosityLevel,
           requiresTools: intentDepth.requiresTools,
+          truncatedContextCount: memoryResult.selectionInfo.truncatedCount,
           reasoningStrategy: workflowResult.reasoningStrategy,
           qualityGatePassed: true,
           latencyMs: context.latencyMs,
@@ -154,15 +159,9 @@ export class QuickSolvExecutionEngine {
       boundedPrompt = boundedPrompt.slice(0, this.MAX_PROMPT_LENGTH) + "\n[Context truncated due to length limits]";
     }
 
-    let boundedHistory = request.history;
-    if (boundedHistory && boundedHistory.length > this.MAX_HISTORY_TURNS) {
-      boundedHistory = boundedHistory.slice(-this.MAX_HISTORY_TURNS);
-    }
-
     return {
       ...request,
-      prompt: boundedPrompt,
-      history: boundedHistory
+      prompt: boundedPrompt
     };
   }
 

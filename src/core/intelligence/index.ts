@@ -24,3 +24,4 @@ export * from "./engine/executionEngine";
 export * from "./response/types";
 export * from "./response/detector";
 export * from "./response/strategy";
+export * from "./memory";
