@@ -110,6 +110,65 @@ function ChatContent() {
   // Usage Tracker
   const [usageLimit, setUsageLimit] = useState({ count: 0, max: 10 });
 
+  // Subscription & Credit State
+  const [subData, setSubData] = useState<{
+    plan: string;
+    status: string;
+    billingInterval: string;
+    credits: {
+      mode: string;
+      monthly: number | null;
+      used: number;
+      remaining: number | null;
+    };
+  } | null>(null);
+  const [subInterval, setSubInterval] = useState<"monthly" | "yearly">("monthly");
+  const [subLoading, setSubLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadSub() {
+      try {
+        const res = await fetch("/api/billing/subscription");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            setSubData(json.subscription);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch subscription:", err);
+      }
+    }
+    loadSub();
+  }, []);
+
+  const handleCheckoutRedirect = async (targetTier: "plus" | "pro", interval: "monthly" | "yearly" = "monthly") => {
+    setSubLoading(true);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetTier,
+          interval,
+          successUrl: window.location.origin + "/chat?checkout=success",
+          cancelUrl: window.location.origin + "/chat?checkout=cancel"
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        alert(data.error || "Unable to open checkout session.");
+      }
+    } catch (err) {
+      console.error("Checkout redirect error:", err);
+      alert("Failed to connect to billing server.");
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
   // Quiz Interaction State
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<string, string>>({}); // quizIndex -> option
   const [submittedQuizzes, setSubmittedQuizzes] = useState<Record<string, boolean>>({}); // quizIndex -> submitted
@@ -4084,8 +4143,8 @@ function ChatContent() {
                 <h3 className="text-lg font-bold text-gray-955 font-serif truncate">
                   {profileData.fullName || "Your Name"}
                 </h3>
-                <span className="text-[9px] font-bold p-0.5 px-2 bg-[#4A2711]/10 text-[#4A2711] rounded-full border border-[#4A2711]/20">
-                  Free Plan
+                <span className="text-[9px] font-bold p-0.5 px-2 bg-[#4A2711]/10 text-[#4A2711] rounded-full border border-[#4A2711]/20 uppercase">
+                  {subData?.plan ? `${subData.plan} Plan` : "Free Plan"}
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-1 truncate">{profileData.emailAddress || "email@example.com"}</p>
@@ -4265,9 +4324,140 @@ function ChatContent() {
               </div>
 
             </div>
+          ) : activeProfileTab === "Subscription" ? (
+            <div className="space-y-6">
+              {/* Active Plan Status Banner */}
+              <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF5EE] border border-[#EADDC9] text-xs font-bold text-[#4A2711]">
+                      <Crown className="w-3.5 h-3.5 text-amber-600" />
+                      Active Plan: <span className="uppercase text-amber-700 font-extrabold">{subData?.plan || "Free"}</span>
+                    </div>
+                    <h3 className="text-base font-bold text-gray-900 font-serif mt-2">Subscription & Credit Entitlement</h3>
+                    <p className="text-xs text-gray-500">Manage your subscription tier, billing period, and monthly solving quota.</p>
+                  </div>
+
+                  {/* Monthly / Yearly Toggle */}
+                  <div className="inline-flex items-center bg-gray-100 p-1 rounded-xl text-xs font-semibold">
+                    <button
+                      onClick={() => setSubInterval("monthly")}
+                      className={`px-3 py-1.5 rounded-lg transition ${
+                        subInterval === "monthly" ? "bg-white text-[#4A2711] shadow-xs font-bold" : "text-gray-500 hover:text-gray-800"
+                      }`}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      onClick={() => setSubInterval("yearly")}
+                      className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1 ${
+                        subInterval === "yearly" ? "bg-white text-[#4A2711] shadow-xs font-bold" : "text-gray-500 hover:text-gray-800"
+                      }`}
+                    >
+                      Yearly <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded">16% OFF</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quota Progress */}
+                <div className="p-4 bg-[#FAF5EE]/60 border border-[#EADDC9]/50 rounded-2xl space-y-2">
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-800">
+                    <span>Monthly Credit Quota</span>
+                    <span>
+                      {subData?.credits.mode === "UNLIMITED"
+                        ? "Unlimited Solves"
+                        : `${subData?.credits.remaining ?? 150} / ${subData?.credits.monthly ?? 150} Credits Remaining`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#4A2711] h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: subData?.credits.mode === "UNLIMITED" ? "100%" : `${Math.min(100, Math.round(((subData?.credits.used ?? 0) / (subData?.credits.monthly ?? 150)) * 100))}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pricing Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Free Tier */}
+                <div className="bg-white border border-gray-200 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-4">
+                  <div>
+                    <h4 className="font-bold text-gray-900 font-serif">Free Plan</h4>
+                    <p className="text-xs text-gray-400 mt-1">Core study explainers & monthly credits.</p>
+                    <div className="mt-3 text-2xl font-extrabold text-gray-900 font-serif">$0 <span className="text-xs text-gray-400 font-normal">/ month</span></div>
+                    <ul className="mt-3 space-y-2 text-xs text-gray-600">
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> 150 AI credits / month</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> Standard AI chat & solver</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> 1 credit per request</li>
+                    </ul>
+                  </div>
+                  <button disabled className="w-full py-2 bg-gray-100 text-gray-400 text-xs font-bold rounded-xl cursor-default">
+                    Current Plan
+                  </button>
+                </div>
+
+                {/* Plus Tier */}
+                <div className="bg-white border-2 border-[#4A2711] rounded-3xl p-5 shadow-md flex flex-col justify-between space-y-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-[#4A2711] text-white text-[9px] font-bold px-3 py-1 rounded-bl-xl uppercase">
+                    Popular
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 font-serif">QuickSolv Plus</h4>
+                    <p className="text-xs text-gray-500 mt-1">High-volume solving & vision capabilities.</p>
+                    <div className="mt-3 text-2xl font-extrabold text-gray-900 font-serif">
+                      {subInterval === "yearly" ? "$99.99" : "$9.99"}
+                      <span className="text-xs text-gray-400 font-normal"> / {subInterval === "yearly" ? "year ($8.33/mo)" : "month"}</span>
+                    </div>
+                    <ul className="mt-3 space-y-2 text-xs text-gray-600">
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> 600 AI credits / month</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> Multimodal Vision solver (2 credits)</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> Priority response processing</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => handleCheckoutRedirect("plus", subInterval)}
+                    disabled={subLoading}
+                    className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center gap-1.5"
+                  >
+                    <Crown className="w-4 h-4 text-amber-400" />
+                    {subLoading ? "Redirecting..." : "Upgrade to Plus"}
+                  </button>
+                </div>
+
+                {/* Pro Tier */}
+                <div className="bg-white border border-amber-300 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-4 bg-amber-50/10">
+                  <div>
+                    <h4 className="font-bold text-gray-900 font-serif flex items-center gap-1.5">
+                      <Crown className="w-4 h-4 text-amber-500" /> QuickSolv Pro
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-1">Unlimited solving for power users & students.</p>
+                    <div className="mt-3 text-2xl font-extrabold text-gray-900 font-serif">
+                      {subInterval === "yearly" ? "$299.99" : "$29.99"}
+                      <span className="text-xs text-gray-400 font-normal"> / {subInterval === "yearly" ? "year ($24.99/mo)" : "month"}</span>
+                    </div>
+                    <ul className="mt-3 space-y-2 text-xs text-gray-600">
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> Unlimited AI chat & solving</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> High-throughput fair-use quota</li>
+                      <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600" /> Developer API & Sandbox access</li>
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => handleCheckoutRedirect("pro", subInterval)}
+                    disabled={subLoading}
+                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center gap-1.5"
+                  >
+                    <Crown className="w-4 h-4 text-amber-300" />
+                    {subLoading ? "Redirecting..." : "Upgrade to Pro"}
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="bg-white border border-gray-200 rounded-3xl p-12 text-center text-gray-400 font-medium">
-              This panel is simulated. Click "Personal Info" to edit your profile.
+              Select a tab above to manage your profile settings.
             </div>
           )}
 
@@ -4322,19 +4512,22 @@ function ChatContent() {
           <div className="bg-white border border-gray-200/60 rounded-2xl p-4 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-xs font-bold text-gray-905 font-serif">Current Plan</h3>
-              <span className="text-[9px] font-bold p-0.5 px-2 bg-[#4A2711]/10 text-[#4A2711] rounded-full">Free</span>
+              <span className="text-[9px] font-bold p-0.5 px-2 bg-[#4A2711]/10 text-[#4A2711] rounded-full uppercase">
+                {subData?.plan || "Free"}
+              </span>
             </div>
             
             <div className="text-[10px] space-y-2.5 text-gray-600 font-medium">
-              <div className="flex items-center gap-2">✓ <span>Limited chats per day</span></div>
+              <div className="flex items-center gap-2">✓ <span>{subData?.credits.mode === "UNLIMITED" ? "Unlimited solving quota" : `${subData?.credits.remaining ?? 150} credits remaining`}</span></div>
               <div className="flex items-center gap-2">✓ <span>Access to core features</span></div>
-              <div className="flex items-center gap-2">✓ <span>Basic AI models</span></div>
+              <div className="flex items-center gap-2">✓ <span>Unified AI model routing</span></div>
               <div className="flex items-center gap-2">✓ <span>Community support</span></div>
               <div className="flex items-center gap-2">✓ <span>Standard response speed</span></div>
             </div>
 
             <button
-              onClick={() => alert("QuickSolv Pro payment integration.")}
+              onClick={() => handleCheckoutRedirect("pro", "monthly")}
+              disabled={subLoading}
               className="w-full py-2.5 bg-[#4A2711] hover:bg-[#5c3216] text-white text-xs font-bold rounded-xl transition shadow-sm flex items-center justify-center gap-1"
             >
               👑 Upgrade to Pro
