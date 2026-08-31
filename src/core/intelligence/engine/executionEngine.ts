@@ -2,11 +2,11 @@ import { QuickSolvRequest, QuickSolvResponse, QuickSolvTaskType } from "../types
 import { QuickSolvToolPermission } from "../tools/types";
 import { quickSolvWorkflowRegistry } from "../workflows/workflowRegistry";
 import { quickSolvQualityGate } from "./qualityGate";
-import { quickSolvModelCatalog } from "../providers/modelCatalog";
 import { QuickSolvExecutionContext, QuickSolvMultimodalValidationResult } from "./types";
 import { quickSolvResponseDetector } from "../response/detector";
 import { quickSolvResponseStrategyManager } from "../response/strategy";
 import { quickSolvContextManager } from "../memory/contextManager";
+import { quickSolvLogger, quickSolvMetricsCollector, quickSolvHealthMonitor } from "@/core/observability";
 
 export class QuickSolvExecutionEngine {
   private readonly DEFAULT_TIMEOUT_MS = 30000;
@@ -15,12 +15,14 @@ export class QuickSolvExecutionEngine {
   private readonly MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
   /**
-   * Executes a QuickSolv request through the hardened Step 8 Memory & Response Intelligence Engine.
+   * Executes a QuickSolv request through the hardened Step 9 Observability & Execution Engine.
    */
   async execute(
     request: QuickSolvRequest,
     userPermission: QuickSolvToolPermission = "public-safe"
   ): Promise<QuickSolvResponse> {
+    quickSolvMetricsCollector.recordRequest();
+
     const context: QuickSolvExecutionContext = {
       correlationId: this.generateCorrelationId(),
       startTime: performance.now(),
@@ -43,7 +45,7 @@ export class QuickSolvExecutionEngine {
         history: memoryResult.normalizedHistory
       });
 
-      // 4. Intent Depth & Response Mode Detection (Step 6 & 8)
+      // 4. Intent Depth & Response Mode Detection
       const intentDepth = quickSolvResponseDetector.detectIntentDepth(boundedRequest);
       const strategyReqs = quickSolvResponseStrategyManager.resolveStrategy(intentDepth);
 
@@ -67,6 +69,11 @@ export class QuickSolvExecutionEngine {
       context.selectedModel = workflowResult.selectedModel;
       context.selectedProvider = workflowResult.selectedProvider;
 
+      // Track Provider Health Success
+      if (workflowResult.selectedProvider === "oxalpha" || workflowResult.selectedProvider === "gemini") {
+        quickSolvHealthMonitor.recordProviderSuccess(workflowResult.selectedProvider);
+      }
+
       // 7. Response Quality Gate & Completeness Validation
       const qualityCheck = quickSolvQualityGate.validatePayload(workflowResult, strategyReqs);
       if (!qualityCheck.passed) {
@@ -76,8 +83,19 @@ export class QuickSolvExecutionEngine {
       context.latencyMs = Math.round(performance.now() - context.startTime);
       context.success = true;
 
-      // 8. Safe Internal Structured Logging
-      this.logExecutionMetadata(context);
+      // Record Metrics
+      quickSolvMetricsCollector.recordSuccess();
+      quickSolvMetricsCollector.recordLatency(context.latencyMs);
+
+      // Safe Internal Structured Logging
+      quickSolvLogger.info("ExecutionEngine successfully processed request", {
+        correlationId: context.correlationId,
+        taskType,
+        selectedModel: workflowResult.selectedModel,
+        selectedProvider: workflowResult.selectedProvider,
+        latencyMs: context.latencyMs,
+        success: true
+      });
 
       return {
         studyResponse: workflowResult.studyResponse,
@@ -103,7 +121,21 @@ export class QuickSolvExecutionEngine {
       context.success = false;
       context.failureCategory = this.categorizeError(err);
 
-      this.logExecutionMetadata(context, err);
+      // Record Metrics & Provider Failure
+      quickSolvMetricsCollector.recordFailure(context.failureCategory);
+      if (context.selectedProvider === "oxalpha" || context.selectedProvider === "gemini") {
+        quickSolvHealthMonitor.recordProviderFailure(context.selectedProvider, err?.message);
+      }
+
+      quickSolvLogger.error(`ExecutionEngine request failed: ${err?.message}`, {
+        correlationId: context.correlationId,
+        taskType: context.taskType,
+        selectedProvider: context.selectedProvider,
+        latencyMs: context.latencyMs,
+        success: false,
+        failureCategory: context.failureCategory
+      });
+
       throw this.sanitizeError(err);
     }
   }
@@ -149,7 +181,7 @@ export class QuickSolvExecutionEngine {
     ];
 
     if (!safeModelSlugs.includes(modelOverride)) {
-      console.warn(`[ExecutionEngine] Unregistered model override '${modelOverride}' supplied. Defaulting to safe catalog model.`);
+      quickSolvLogger.warn(`Unregistered model override '${modelOverride}' supplied. Defaulting to safe catalog model.`);
     }
   }
 
@@ -185,24 +217,6 @@ export class QuickSolvExecutionEngine {
       .replace(/Bearer\s+[^\s]+/g, "Bearer [REDACTED_TOKEN]");
 
     return new Error(sanitizedMsg);
-  }
-
-  private logExecutionMetadata(context: QuickSolvExecutionContext, error?: any): void {
-    const logObj = {
-      correlationId: context.correlationId,
-      taskType: context.taskType,
-      selectedModel: context.selectedModel,
-      selectedProvider: context.selectedProvider,
-      latencyMs: context.latencyMs,
-      success: context.success,
-      failureCategory: context.failureCategory,
-      timestamp: new Date().toISOString()
-    };
-    if (error) {
-      console.warn(`[ExecutionEngine Log] ${JSON.stringify(logObj)}`);
-    } else {
-      console.log(`[ExecutionEngine Log] ${JSON.stringify(logObj)}`);
-    }
   }
 }
 
