@@ -12,7 +12,7 @@ export default function Home() {
   const [promptInput, setPromptInput] = useState("");
 
   useEffect(() => {
-    // Listen to Firebase Auth state
+    // Listen to Firebase Auth state & sync user details
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         saveFirebaseUserData(user);
@@ -29,7 +29,7 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  const handleOpenAuth = () => {
+  const handleOpenAuthPage = () => {
     router.push("/login");
   };
 
@@ -56,7 +56,7 @@ export default function Home() {
             </Link>
             <Link
               href="/login"
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-[#4A2711] hover:bg-[#5c3216] rounded-lg transition duration-200 shadow-md shadow-[#4A2711]/10"
+              className="px-5 py-2.5 text-sm font-semibold text-white bg-[#4A2711] hover:bg-[#5c3216] rounded-lg transition duration-200 shadow-md shadow-[#4A2711]/10 cursor-pointer"
             >
               Get Started Free
             </Link>
@@ -95,7 +95,7 @@ export default function Home() {
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={handleOpenAuth}
+                  onClick={handleOpenAuthPage}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5 text-gray-400" />
@@ -103,7 +103,7 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleOpenAuth}
+                  onClick={handleOpenAuthPage}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   <Clipboard className="w-3.5 h-3.5 text-gray-400" />
@@ -119,7 +119,7 @@ export default function Home() {
                   <option>Research Mode</option>
                 </select>
                 <button
-                  onClick={handleOpenAuth}
+                  onClick={handleOpenAuthPage}
                   className="w-8 h-8 rounded-lg bg-[#4A2711] hover:bg-[#5c3216] text-white flex items-center justify-center shadow-sm transition cursor-pointer"
                 >
                   <Send className="w-4 h-4 transform rotate-45 -translate-x-0.5 translate-y-0.5 fill-white text-[#4A2711]" />
@@ -128,7 +128,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Large CTA Button */}
+          {/* Large Hero CTA Button */}
           <div className="space-y-2">
             <Link
               href="/login"
