@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { loginWithFirebaseEmail, loginWithFirebaseGoogle, checkFirebaseRedirectResult, auth } from "@/services/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { Mail, Lock, ArrowRight, GraduationCap } from "lucide-react";
+import { Mail, Lock, ArrowRight, GraduationCap, AlertCircle, ExternalLink } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
@@ -15,6 +15,7 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
   
   const redirectUrl = searchParams.get("redirect") || "/chat";
 
@@ -53,6 +54,7 @@ function LoginContent() {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
+    setIsUnauthorizedDomain(false);
     
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
@@ -94,6 +96,7 @@ function LoginContent() {
   const handleGoogleAuth = async () => {
     setErrorMsg("");
     setSuccessMsg("");
+    setIsUnauthorizedDomain(false);
     setIsLoading(true);
     
     try {
@@ -112,13 +115,14 @@ function LoginContent() {
       }
     } catch (err: any) {
       console.warn("Firebase Google Auth error:", err);
-      let msg = err.message || "Google authentication failed. Please try again.";
       if (err.code === "auth/unauthorized-domain") {
-        msg = "Domain not authorized in Firebase. Please add this domain to Firebase Console Authentication -> Authorized Domains.";
+        setIsUnauthorizedDomain(true);
+        setErrorMsg("Domain authorization needed in Firebase Console for quicksolv-pi.vercel.app");
       } else if (err.code === "auth/popup-closed-by-user") {
-        msg = "Google sign-in popup was closed before completing.";
+        setErrorMsg("Google sign-in popup was closed before completing.");
+      } else {
+        setErrorMsg(err.message || "Google authentication failed. Please try again.");
       }
-      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }
@@ -145,7 +149,30 @@ function LoginContent() {
         {/* Auth Box */}
         <div className="bg-white border border-gray-200/80 p-8 rounded-3xl shadow-lg shadow-[#4A2711]/5">
           
-          {errorMsg && (
+          {isUnauthorizedDomain && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-amber-950 text-sm">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                Firebase Domain Authorization Setup
+              </div>
+              <p className="leading-relaxed">
+                Firebase security policy requires adding <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-[11px]">quicksolv-pi.vercel.app</code> to authorized domains.
+              </p>
+              <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200 space-y-1">
+                <div className="font-semibold text-gray-900">How to authorize in 30 seconds:</div>
+                <ol className="list-decimal list-inside space-y-1 text-gray-700 text-[11px]">
+                  <li>Open <a href="https://console.firebase.google.com/u/0/project/quicksolv-8d65d/authentication/settings" target="_blank" rel="noopener noreferrer" className="font-bold underline text-[#4A2711] inline-flex items-center gap-0.5">Firebase Console Auth Settings <ExternalLink className="w-3 h-3" /></a></li>
+                  <li>Click <strong>Authorized domains</strong> &rarr; <strong>Add domain</strong></li>
+                  <li>Type <code className="font-mono bg-gray-100 px-1 rounded">quicksolv-pi.vercel.app</code> and Save</li>
+                </ol>
+              </div>
+              <div className="pt-1 text-[11px] text-gray-600">
+                💡 <em>Or enter your Email & Password below to log in immediately via Email Auth!</em>
+              </div>
+            </div>
+          )}
+
+          {errorMsg && !isUnauthorizedDomain && (
             <div className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-700 font-semibold">
               {errorMsg}
             </div>
@@ -212,29 +239,25 @@ function LoginContent() {
               </div>
             </div>
 
-            <div className="pt-2 flex flex-col gap-3">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-3 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl text-sm transition duration-200 flex items-center justify-center gap-1.5 shadow-md shadow-[#4A2711]/10 cursor-pointer disabled:opacity-70"
-              >
-                {isLoading ? "Signing in..." : "Continue with Email"}
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={(e) => handleEmailAuth(e, true)}
-                disabled={isLoading}
-                className="w-full py-2 border border-transparent hover:border-gray-100 text-gray-500 hover:text-[#4A2711] text-xs font-semibold rounded-lg transition duration-200 cursor-pointer"
-              >
-                No account? Register instead
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition duration-200 shadow-md shadow-[#4A2711]/10 text-sm cursor-pointer mt-2"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  Continue with Email
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-450 mt-8">
+        {/* Footer info */}
+        <p className="text-center text-xs text-gray-450 mt-6">
           By signing up, you agree to QuickSolv's Terms of Service and Privacy Policy.
         </p>
       </div>
@@ -244,12 +267,14 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="flex-grow bg-[#FCF9F5] text-gray-900 flex items-center justify-center py-12 px-6">
-        <div className="w-8 h-8 rounded-full border-2 border-[#4A2711]/30 border-t-[#4A2711] animate-spin"></div>
-      </div>
-    }>
-      <LoginContent />
-    </Suspense>
+    <div className="min-h-screen bg-[#FCF9F5] flex flex-col justify-between">
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[#FCF9F5]">
+          <div className="w-8 h-8 border-3 border-[#4A2711]/30 border-t-[#4A2711] rounded-full animate-spin"></div>
+        </div>
+      }>
+        <LoginContent />
+      </Suspense>
+    </div>
   );
 }
