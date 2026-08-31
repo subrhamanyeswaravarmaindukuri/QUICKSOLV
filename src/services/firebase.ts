@@ -8,6 +8,8 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   User as FirebaseUser
 } from "firebase/auth";
 
@@ -29,6 +31,13 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: "select_account"
 });
+
+// Enforce long-term browserLocalPersistence across days and re-opens
+if (typeof window !== "undefined") {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn("Firebase persistence initialization notice:", err);
+  });
+}
 
 // Helper for Real Firebase Email/Password Login with Auto-Registration Fallback
 export const loginWithFirebaseEmail = async (email: string, pass: string) => {

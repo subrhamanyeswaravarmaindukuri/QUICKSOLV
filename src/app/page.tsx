@@ -1,7 +1,48 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@/services/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { Upload, Clipboard, ArrowRight, Send, Star, GraduationCap, MoreHorizontal, Lightbulb, Zap } from "lucide-react";
 
 export default function Home() {
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [promptInput, setPromptInput] = useState("");
+
+  useEffect(() => {
+    // Check long-term Firebase session
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsLoggedIn(true);
+        const userObj = {
+          id: user.uid,
+          email: user.email || "user@quicksolv.edu",
+          name: user.displayName || user.email?.split("@")[0] || "QuickSolv User",
+          photoURL: user.photoURL
+        };
+        localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
+      } else {
+        const saved = localStorage.getItem("snaptutor_user");
+        if (saved) {
+          setIsLoggedIn(true);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleAction = () => {
+    if (isLoggedIn) {
+      router.push("/chat");
+    } else {
+      router.push("/login");
+    }
+  };
+
   return (
     <div className="min-h-screen lg:h-screen lg:max-h-screen bg-[#FCF9F5] text-gray-900 flex flex-col font-sans antialiased selection:bg-[#4A2711]/10 selection:text-[#4A2711] lg:overflow-hidden">
       
@@ -18,17 +59,17 @@ export default function Home() {
           </Link>
           <div className="flex items-center space-x-6">
             <Link
-              href="/login"
+              href={isLoggedIn ? "/chat" : "/login"}
               className="text-sm font-semibold text-gray-700 hover:text-[#4A2711] transition duration-200"
             >
-              Log in
+              {isLoggedIn ? "Go to App" : "Log in"}
             </Link>
-            <Link
-              href="/chat"
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-[#4A2711] hover:bg-[#5c3216] rounded-lg transition duration-200 shadow-md shadow-[#4A2711]/10"
+            <button
+              onClick={handleAction}
+              className="px-5 py-2.5 text-sm font-semibold text-white bg-[#4A2711] hover:bg-[#5c3216] rounded-lg transition duration-200 shadow-md shadow-[#4A2711]/10 cursor-pointer"
             >
-              Get Started Free
-            </Link>
+              {isLoggedIn ? "Open Dashboard" : "Get Started Free"}
+            </button>
           </div>
         </div>
       </header>
@@ -53,6 +94,8 @@ export default function Home() {
           <div className="bg-white border border-gray-200/80 rounded-2xl p-3 shadow-sm relative focus-within:ring-2 focus-within:ring-[#4A2711]/20 focus-within:border-[#4A2711]/50 transition duration-200">
             <textarea
               rows={2}
+              value={promptInput}
+              onChange={(e) => setPromptInput(e.target.value)}
               placeholder="Ask anything or upload a screenshot..."
               className="w-full bg-transparent border-0 focus:ring-0 text-sm focus:outline-none resize-none text-gray-800 placeholder-gray-400 py-0.5"
             />
@@ -62,14 +105,16 @@ export default function Home() {
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition"
+                  onClick={handleAction}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5 text-gray-400" />
                   Upload
                 </button>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition"
+                  onClick={handleAction}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition cursor-pointer"
                 >
                   <Clipboard className="w-3.5 h-3.5 text-gray-400" />
                   Paste
@@ -83,25 +128,25 @@ export default function Home() {
                   <option>Normal Steps</option>
                   <option>Research Mode</option>
                 </select>
-                <Link
-                  href="/chat"
-                  className="w-8 h-8 rounded-lg bg-[#4A2711] hover:bg-[#5c3216] text-white flex items-center justify-center shadow-sm transition"
+                <button
+                  onClick={handleAction}
+                  className="w-8 h-8 rounded-lg bg-[#4A2711] hover:bg-[#5c3216] text-white flex items-center justify-center shadow-sm transition cursor-pointer"
                 >
                   <Send className="w-4 h-4 transform rotate-45 -translate-x-0.5 translate-y-0.5 fill-white text-[#4A2711]" />
-                </Link>
+                </button>
               </div>
             </div>
           </div>
 
           {/* Large CTA Button */}
           <div className="space-y-2">
-            <Link
-              href="/chat"
-              className="w-full h-12 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition duration-200 shadow-lg shadow-[#4A2711]/15 transform hover:-translate-y-0.5 text-sm md:text-base"
+            <button
+              onClick={handleAction}
+              className="w-full h-12 bg-[#4A2711] hover:bg-[#5c3216] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition duration-200 shadow-lg shadow-[#4A2711]/15 transform hover:-translate-y-0.5 text-sm md:text-base cursor-pointer"
             >
-              Get Started Free
+              {isLoggedIn ? "Open QuickSolv Dashboard" : "Get Started Free"}
               <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
-            </Link>
+            </button>
             <div className="text-center text-[11px] text-gray-450">
               No credit card required
             </div>
@@ -152,7 +197,7 @@ export default function Home() {
           {/* Card Frame */}
           <div className="bg-white border border-gray-200/60 rounded-3xl p-4 lg:p-5 shadow-xl space-y-4">
             
-            {/* Header (卒業帽 + online dot) */}
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-full bg-[#FAF5EE] border border-[#E9DFD3] flex items-center justify-center text-[#4A2711]">
