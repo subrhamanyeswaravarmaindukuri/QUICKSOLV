@@ -27,6 +27,22 @@ export function hashApiKey(plaintextKey: string): string {
 }
 
 /**
+ * Performs a timing-safe equality check between two hex-encoded hashes.
+ * Prevents side-channel timing analysis attacks on API key verification.
+ */
+export function timingSafeCompareHashes(hashA: string, hashB: string): boolean {
+  if (hashA.length !== hashB.length) return false;
+  try {
+    const bufA = Buffer.from(hashA, "hex");
+    const bufB = Buffer.from(hashB, "hex");
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Generates a high-entropy QuickSolv API Key secret.
  * Format: qs_live_<32 random hex characters>
  * Returns the plaintext key (to show developer ONCE) and the pre-computed hash for DB insertion.

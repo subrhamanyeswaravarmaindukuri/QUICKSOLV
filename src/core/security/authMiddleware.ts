@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hashApiKey, validateApiKeyStatus, ApiKeyRecord } from "./apiKeyService";
+import { hashApiKey, timingSafeCompareHashes, validateApiKeyStatus, ApiKeyRecord } from "./apiKeyService";
 import { checkRateLimit } from "./rateLimiter";
 import { createApiErrorResponse } from "./apiErrors";
 import { dbService, supabase } from "@/services/supabase";
@@ -17,7 +17,7 @@ export type AuthMiddlewareResult =
   | { success: false; errorResponse: NextResponse };
 
 /**
- * Authenticates developer API request headers, validates API key hash,
+ * Authenticates developer API request headers, validates API key hash using timing-safe comparisons,
  * verifies monthly credit limits, and checks rate limits.
  */
 export async function authenticateApiRequest(
@@ -54,23 +54,28 @@ export async function authenticateApiRequest(
       .single();
 
     if (!error && data) {
-      keyRecord = data as ApiKeyRecord;
+      if (timingSafeCompareHashes(data.key_hash, computedHash)) {
+        keyRecord = data as ApiKeyRecord;
+      }
     }
   }
 
   // Fallback check for local simulation / test key
   if (!keyRecord && rawKey.startsWith("qs_test_demo_key")) {
-    keyRecord = {
-      id: "key_demo_123",
-      user_id: "demo-user-123",
-      name: "Test Demo Key",
-      key_prefix: rawKey.substring(0, 12),
-      key_hash: computedHash,
-      created_at: new Date().toISOString(),
-      rate_limit_rpm: 60,
-      monthly_credit_limit: 1000,
-      scopes: ["solve:read", "chat:write", "code:full"]
-    };
+    const demoHash = hashApiKey("qs_test_demo_key_1234567890abcdef");
+    if (timingSafeCompareHashes(computedHash, demoHash) || rawKey === "qs_test_demo_key_1234567890abcdef") {
+      keyRecord = {
+        id: "key_demo_123",
+        user_id: "demo-user-123",
+        name: "Test Demo Key",
+        key_prefix: rawKey.substring(0, 12),
+        key_hash: computedHash,
+        created_at: new Date().toISOString(),
+        rate_limit_rpm: 60,
+        monthly_credit_limit: 1000,
+        scopes: ["solve:read", "chat:write", "code:full"]
+      };
+    }
   }
 
   if (!keyRecord) {

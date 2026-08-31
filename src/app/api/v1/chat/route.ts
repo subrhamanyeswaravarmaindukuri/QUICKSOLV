@@ -6,6 +6,15 @@ import { dbService } from "@/services/supabase";
 
 export const dynamic = "force-static";
 
+const SECURITY_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin"
+};
+
 export async function POST(request: Request) {
   // 1. Authenticate Request & Enforce Scopes, Quotas, and Rate Limits
   const authResult = await authenticateApiRequest(request, "chat:write");
@@ -120,11 +129,7 @@ export async function POST(request: Request) {
       }
     },
     {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type"
-      }
+      headers: SECURITY_HEADERS
     }
   );
 }
@@ -132,10 +137,6 @@ export async function POST(request: Request) {
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type"
-    }
+    headers: SECURITY_HEADERS
   });
 }

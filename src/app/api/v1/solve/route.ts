@@ -8,18 +8,22 @@ import { dbService } from "@/services/supabase";
 
 export const dynamic = "force-static";
 
+const SECURITY_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin"
+};
+
 interface VerificationResult {
   verified: boolean;
   engine?: string;
 }
 
-/**
- * Attempts programmatic verification of mathematical calculations using MathJS.
- * Claims verified=true ONLY when calculations are successfully verified.
- */
 function performMathVerification(problem: string, studyResponse: GeminiStudyResponse): VerificationResult {
   try {
-    // 1. Check if problem can be directly resolved via calculator logic (MathJS)
     const directCalc = tryResolveCalculator(problem);
     if (directCalc !== null) {
       const fullAnswerStr = [
@@ -40,7 +44,6 @@ function performMathVerification(problem: string, studyResponse: GeminiStudyResp
       }
     }
 
-    // 2. Check studyResponse.calculations if populated by AI router math verification
     if (Array.isArray(studyResponse.calculations) && studyResponse.calculations.length > 0) {
       let allPassed = true;
       let evaluatedCount = 0;
@@ -61,7 +64,6 @@ function performMathVerification(problem: string, studyResponse: GeminiStudyResp
       }
     }
 
-    // 3. Check math_mode if present
     if (studyResponse.math_mode) {
       const { formula, substitution, calculation, answer } = studyResponse.math_mode;
       const exprToTest = calculation || substitution || formula;
@@ -73,7 +75,6 @@ function performMathVerification(problem: string, studyResponse: GeminiStudyResp
       }
     }
 
-    // 4. Evaluate quadratic equation roots if present in problem (e.g. "2x^2 + 5x - 3 = 0")
     const cleanProblem = problem.replace(/solve|calculate|evaluate|find|what is|\?/gi, "").trim();
     const quadMatch = cleanProblem.match(/([+-]?\s*\d*)\s*x\s*\^\s*2\s*([+-]\s*\d*)\s*x\s*([+-]\s*\d*)\s*=\s*0/i);
     if (quadMatch) {
@@ -282,11 +283,7 @@ export async function POST(request: Request) {
       }
     },
     {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type"
-      }
+      headers: SECURITY_HEADERS
     }
   );
 }
@@ -294,10 +291,6 @@ export async function POST(request: Request) {
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type"
-    }
+    headers: SECURITY_HEADERS
   });
 }
