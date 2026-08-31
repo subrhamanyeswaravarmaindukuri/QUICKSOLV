@@ -85,6 +85,16 @@ export class QuickSolvCreditDeduction {
         ? Math.max(0, entitlement.monthlyCreditLimit - newCount)
         : null;
 
+    // Durable credit ledger recording
+    await dbService.recordCreditLedgerEntry({
+      userId,
+      amount: creditsToDeduct,
+      eventType: req.requestType === "vision" ? "VISION_REQUEST" : "AI_REQUEST",
+      correlationId,
+      balanceAfter: newRemaining ?? 999999,
+      metadata: { requestType: req.requestType, isMultimodal: req.isMultimodal || false }
+    });
+
     quickSolvLogger.info("Successfully deducted AI credits", {
       correlationId,
       userId,

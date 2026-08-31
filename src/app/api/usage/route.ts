@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbService } from "@/services/supabase";
+import { quickSolvEntitlementService } from "@/core/billing/entitlementService";
 
 export const dynamic = "force-static";
 
@@ -9,7 +10,19 @@ export async function GET(request: Request) {
     const userId = searchParams.get("userId") || "demo-user-123";
 
     const usage = await dbService.checkUsageLimit(userId);
-    return NextResponse.json({ success: true, ...usage });
+    const entitlement = await quickSolvEntitlementService.getEntitlement(userId);
+
+    return NextResponse.json({
+      success: true,
+      count: usage.count,
+      max: entitlement.monthlyCreditLimit || 999999,
+      plan: entitlement.plan,
+      creditMode: entitlement.creditMode,
+      monthlyCreditLimit: entitlement.monthlyCreditLimit,
+      creditsUsed: entitlement.creditsUsed,
+      creditsRemaining: entitlement.creditsRemaining,
+      subscriptionStatus: entitlement.subscriptionStatus
+    });
   } catch (err: any) {
     console.error("API GET usage failed:", err);
     return NextResponse.json({ error: "Failed to retrieve usage stats" }, { status: 500 });

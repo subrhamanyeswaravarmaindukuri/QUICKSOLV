@@ -45,6 +45,9 @@ interface InMemoryDb {
   }>;
   userStreaks?: Record<string, { streak_count: number; streak_last_date: string; streak_history: string[] }>;
   apiKeys?: any[];
+  subscriptions?: Record<string, any>;
+  billingTransactions?: any[];
+  creditLedger?: any[];
 }
 
 // Clear all pre-populated mock history to allow a 100% clean and real user experience
@@ -60,6 +63,9 @@ let serverDb: InMemoryDb = {
   savedAnswers: [],
   usage: {},
   quizResults: [],
+  subscriptions: {},
+  billingTransactions: [],
+  creditLedger: [],
   apiKeys: [
     {
       id: "key_demo_123",
@@ -613,5 +619,139 @@ export const dbService = {
       }
       return false;
     }
+  },
+
+  async getUserSubscription(userId: string): Promise<any | null> {
+    if (supabase) {
+      try {
+        const { data } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("user_id", userId)
+          .single();
+        if (data) return data;
+      } catch (e) {
+        // fallback
+      }
+    }
+
+    const db = getDb();
+    if (!db.subscriptions) db.subscriptions = {};
+    return db.subscriptions[userId] || null;
+  },
+
+  async updateUserSubscription(
+    userId: string,
+    data: { plan: string; interval: string; status: string; currentPeriodEnd: string }
+  ): Promise<any> {
+    const record = {
+      user_id: userId,
+      plan: data.plan,
+      billing_interval: data.interval,
+      status: data.status,
+      current_period_end: data.currentPeriodEnd,
+      updated_at: new Date().toISOString()
+    };
+
+    if (supabase) {
+      try {
+        await supabase.from("profiles").update({ tier: data.plan }).eq("id", userId);
+        const { data: updated } = await supabase
+          .from("subscriptions")
+          .upsert(record)
+          .select()
+          .single();
+        if (updated) return updated;
+      } catch (err) {
+        console.warn("Supabase subscription update warning:", err);
+      }
+    }
+
+    const db = getDb();
+    if (!db.subscriptions) db.subscriptions = {};
+    if (!db.profiles) db.profiles = {};
+    if (db.profiles[userId]) {
+      db.profiles[userId].tier = data.plan;
+    }
+    const fullSub = { id: `sub_${userId}`, ...record, current_period_start: new Date().toISOString(), cancel_at_period_end: false };
+    db.subscriptions[userId] = fullSub;
+    saveDb(db);
+    return fullSub;
+  },
+
+  async recordBillingTransaction(data: {
+    userId: string;
+    subscriptionId?: string;
+    plan: string;
+    interval: string;
+    amount: number;
+    currency?: string;
+    provider: string;
+    providerTxId?: string;
+    status: string;
+  }): Promise<any> {
+    const record = {
+      id: `tx_${Math.random().toString(36).substring(2, 11)}`,
+      user_id: data.userId,
+      subscription_id: data.subscriptionId,
+      plan: data.plan,
+      billing_interval: data.interval,
+      amount: data.amount,
+      currency: data.currency || "USD",
+      provider: data.provider,
+      provider_tx_id: data.providerTxId || `ptx_${Math.random().toString(36).substring(2, 11)}`,
+      status: data.status,
+      created_at: new Date().toISOString()
+    };
+
+    if (supabase) {
+      try {
+        const { data: inserted } = await supabase.from("billing_transactions").insert(record).select().single();
+        if (inserted) return inserted;
+      } catch (err) {
+        console.warn("Supabase transaction insert warning:", err);
+      }
+    }
+
+    const db = getDb();
+    if (!db.billingTransactions) db.billingTransactions = [];
+    db.billingTransactions.push(record);
+    saveDb(db);
+    return record;
+  },
+
+  async recordCreditLedgerEntry(data: {
+    userId: string;
+    amount: number;
+    eventType: string;
+    correlationId?: string;
+    balanceAfter?: number;
+    metadata?: any;
+  }): Promise<any> {
+    const record = {
+      id: `ledger_${Math.random().toString(36).substring(2, 11)}`,
+      user_id: data.userId,
+      amount: data.amount,
+      event_type: data.eventType,
+      correlation_id: data.correlationId,
+      balance_after: data.balanceAfter,
+      metadata: data.metadata || {},
+      created_at: new Date().toISOString()
+    };
+
+    if (supabase) {
+      try {
+        const { data: inserted } = await supabase.from("credit_ledger").insert(record).select().single();
+        if (inserted) return inserted;
+      } catch (err) {
+        console.warn("Supabase credit_ledger insert warning:", err);
+      }
+    }
+
+    const db = getDb();
+    if (!db.creditLedger) db.creditLedger = [];
+    db.creditLedger.push(record);
+    saveDb(db);
+    return record;
   }
 };

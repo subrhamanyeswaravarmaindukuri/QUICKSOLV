@@ -4,7 +4,7 @@ import { dbService, supabase } from "@/services/supabase";
 
 export class QuickSolvEntitlementService {
   /**
-   * Derives trusted user entitlement server-side.
+   * Derives trusted user entitlement server-side from persistent storage.
    * Client-supplied plan or credit overrides are strictly ignored.
    */
   async getEntitlement(userId: string): Promise<UserEntitlement> {
@@ -20,8 +20,19 @@ export class QuickSolvEntitlementService {
     let subStatus: SubscriptionStatus = "active";
     let billingInterval: "monthly" | "yearly" = "monthly";
 
-    // 1. Check Supabase Subscription / Profile if configured
-    if (supabase) {
+    // 1. Check stored subscription via dbService (works in both Supabase & in-memory mode)
+    const storedSub = await dbService.getUserSubscription(userId);
+    if (storedSub) {
+      if (storedSub.plan === "plus" || storedSub.plan === "pro") {
+        planTier = storedSub.plan as CustomerTier;
+      }
+      if (storedSub.status) {
+        subStatus = storedSub.status as SubscriptionStatus;
+      }
+      if (storedSub.billing_interval) {
+        billingInterval = storedSub.billing_interval;
+      }
+    } else if (supabase) {
       const { data: profile } = await supabase
         .from("profiles")
         .select("tier, subscription_status, billing_interval")
