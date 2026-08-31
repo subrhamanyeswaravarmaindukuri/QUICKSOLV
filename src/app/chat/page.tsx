@@ -1094,7 +1094,7 @@ function ChatContent() {
     }
   }, [quizHistory]);
 
-  // Load user session from Firebase Auth / local storage
+  // Strict Firebase Authentication Guard: Require active Firebase User
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
@@ -1108,21 +1108,12 @@ function ChatContent() {
         localStorage.setItem("snaptutor_user", JSON.stringify(loggedUser));
         setUser(loggedUser);
       } else {
-        const saved = localStorage.getItem("snaptutor_user");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            if (parsed && (parsed.id || parsed.email)) {
-              setUser(parsed);
-            } else {
-              router.push("/login");
-            }
-          } catch {
-            router.push("/login");
-          }
-        } else {
-          router.push("/login");
+        // No active Firebase User -> Clear stale cached session & redirect to /login
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("snaptutor_user");
         }
+        setUser(null);
+        router.push("/login");
       }
     });
 

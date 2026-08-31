@@ -207,7 +207,7 @@ Output in JSON:
       
       const verificationResponse = await generateGeminiContent({
         prompt: mathVerificationPrompt,
-        modelOverride: "gemini-3.6-flash"
+        modelOverride: "gemini-2.0-flash"
       });
 
       // If we got calculations, evaluate them programmatically
