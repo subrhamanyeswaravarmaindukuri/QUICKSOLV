@@ -426,15 +426,17 @@ export const dbService = {
     aiResponse: any,
     attachedImage?: string,
     attachedImageMime?: string,
-    aiMode?: string
+    aiMode?: string,
+    userId?: string
   ): Promise<void> {
     if (supabase) return;
     const db = getDb();
+    const activeUserId = userId || "demo-user-123";
     
     if (!db.conversations.some(c => c.id === convId)) {
       db.conversations.push({
         id: convId,
-        user_id: "demo-user-123",
+        user_id: activeUserId,
         title,
         description,
         subject,

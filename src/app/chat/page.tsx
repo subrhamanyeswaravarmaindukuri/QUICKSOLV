@@ -1120,24 +1120,30 @@ function ChatContent() {
     return () => unsubscribe();
   }, [router]);
 
-  // Load user profile from localStorage
+  // Load user profile from localStorage or derive from logged-in user
   useEffect(() => {
     if (user) {
+      const derivedName = user.displayName || user.name || (user.email ? user.email.split("@")[0] : "") || "QuickSolv Student";
+      const derivedEmail = user.email || "";
       const savedProfile = localStorage.getItem(`quicksolv_profile_${user.id || user.email}`);
       if (savedProfile) {
-        setProfileData(JSON.parse(savedProfile));
-      } else {
-        // Start with empty profile info as requested, except JoinedOn and Avatar default
+        const parsed = JSON.parse(savedProfile);
         setProfileData({
-          fullName: "",
-          emailAddress: "",
+          ...parsed,
+          fullName: parsed.fullName || derivedName,
+          emailAddress: parsed.emailAddress || derivedEmail
+        });
+      } else {
+        setProfileData({
+          fullName: derivedName,
+          emailAddress: derivedEmail,
           phoneNumber: "",
           dob: "",
           gender: "",
           location: "",
           aboutMe: "",
           joinedOn: "Joined on 24 May, 2025",
-          avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100&h=100"
+          avatarUrl: user.photoURL || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100&h=100"
         });
       }
     }
@@ -2028,7 +2034,8 @@ function ChatContent() {
             simulatedResponse,
             attachedImage || undefined,
             attachedImageMime || undefined,
-            aiMode
+            aiMode,
+            user.id || user.email
           );
         }
 
@@ -2067,7 +2074,8 @@ function ChatContent() {
             data.response,
             attachedImage || undefined,
             attachedImageMime || undefined,
-            aiMode
+            aiMode,
+            user.id || user.email
           );
         }
 
@@ -5629,11 +5637,11 @@ function ChatContent() {
             <div className="flex items-center gap-3">
               <img
                 src={profileData.avatarUrl || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100&h=100"}
-                alt="Ananya Kumar profile"
+                alt="User profile"
                 className="w-9 h-9 rounded-full object-cover border border-[#EADDC9]"
               />
               <div className="min-w-0">
-                <div className="text-xs font-bold text-gray-900 truncate">{profileData.fullName || "Ananya Kumar"}</div>
+                <div className="text-xs font-bold text-gray-900 truncate">{profileData.fullName || user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "") || "QuickSolv Student"}</div>
                 <div className="text-[10px] text-gray-450 font-semibold mt-0.5">Free Plan</div>
               </div>
             </div>
@@ -5673,7 +5681,7 @@ function ChatContent() {
             {/* Header Greeting */}
             <div>
               <h2 className="text-sm font-bold text-gray-900 font-serif">
-                Hello, {profileData.fullName ? profileData.fullName.split(" ")[0] : "Student"}! 👋
+                Hello, {profileData.fullName ? profileData.fullName.split(" ")[0] : (user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "") || "Student")}! 👋
               </h2>
               <p className="text-[10px] text-gray-450 mt-0.5 font-medium">What are you learning today?</p>
             </div>
@@ -5723,7 +5731,7 @@ function ChatContent() {
                   className="w-6 h-6 rounded-full object-cover border border-[#EADDC9]"
                 />
                 <span className="text-[11px] font-bold text-gray-750 truncate hidden sm:inline-block max-w-[100px]">
-                  {profileData.fullName || "Ananya Kumar"}
+                  {profileData.fullName || user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "") || "QuickSolv Student"}
                 </span>
                 <ChevronDown className="w-3 h-3 text-gray-400 shrink-0 hidden sm:inline-block" />
               </div>
@@ -5738,8 +5746,8 @@ function ChatContent() {
                       className="w-8 h-8 rounded-full object-cover"
                     />
                     <div className="truncate">
-                      <div className="font-bold text-gray-900 leading-tight">{profileData.fullName || "Ananya Kumar"}</div>
-                      <div className="text-[10px] text-gray-455 truncate mt-0.5">{profileData.emailAddress || "email@example.com"}</div>
+                      <div className="font-bold text-gray-900 leading-tight">{profileData.fullName || user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "") || "QuickSolv Student"}</div>
+                      <div className="text-[10px] text-gray-455 truncate mt-0.5">{profileData.emailAddress || user?.email || "email@example.com"}</div>
                     </div>
                   </div>
 
