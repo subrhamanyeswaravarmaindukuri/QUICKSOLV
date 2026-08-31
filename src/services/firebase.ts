@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -79,6 +80,20 @@ export const saveFirebaseUserData = async (user: FirebaseUser) => {
   }
 };
 
+// Helper to check for OAuth redirect login results
+export const checkFirebaseRedirectResult = async (): Promise<FirebaseUser | null> => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      await saveFirebaseUserData(result.user);
+      return result.user;
+    }
+  } catch (err) {
+    console.warn("Firebase redirect check notice:", err);
+  }
+  return null;
+};
+
 // Helper for Real Firebase Email/Password Login with Auto-Registration Fallback
 export const loginWithFirebaseEmail = async (email: string, pass: string) => {
   const cleanEmail = email.trim();
@@ -112,19 +127,17 @@ export const loginWithFirebaseEmail = async (email: string, pass: string) => {
   return user;
 };
 
-// Helper for Real Firebase Google OAuth Login
+// Helper for Real Firebase Google OAuth Login with popup & redirect fallback
 export const loginWithFirebaseGoogle = async () => {
   let user: FirebaseUser | null = null;
   try {
     const result = await signInWithPopup(auth, googleProvider);
     user = result.user;
   } catch (error: any) {
-    // Popup fallback to redirect mode if popups are blocked on mobile browsers
-    if (error.code === "auth/popup-blocked" || error.code === "auth/popup-closed-by-user") {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
-    throw error;
+    console.warn("Popup authentication prevented, switching to OAuth redirect mode:", error?.code || error);
+    // Popup fallback to redirect mode if popups are blocked on browsers
+    await signInWithRedirect(auth, googleProvider);
+    return null;
   }
 
   if (user) {

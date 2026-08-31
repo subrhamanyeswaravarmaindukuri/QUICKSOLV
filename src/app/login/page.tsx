@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { loginWithFirebaseEmail, loginWithFirebaseGoogle, auth } from "@/services/firebase";
+import { loginWithFirebaseEmail, loginWithFirebaseGoogle, checkFirebaseRedirectResult, auth } from "@/services/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Mail, Lock, ArrowRight, GraduationCap } from "lucide-react";
 
@@ -18,13 +18,13 @@ function LoginContent() {
   
   const redirectUrl = searchParams.get("redirect") || "/chat";
 
-  // If already authenticated via Firebase or local session, redirect to chat
+  // Check for Google OAuth redirect results or existing active Firebase user
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    checkFirebaseRedirectResult().then((user) => {
       if (user) {
         const userObj = {
           id: user.uid,
-          email: user.email || email,
+          email: user.email || "",
           name: user.displayName || user.email?.split("@")[0] || "QuickSolv User",
           photoURL: user.photoURL
         };
@@ -33,13 +33,21 @@ function LoginContent() {
       }
     });
 
-    const saved = localStorage.getItem("snaptutor_user");
-    if (saved) {
-      router.push(redirectUrl);
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userObj = {
+          id: user.uid,
+          email: user.email || "",
+          name: user.displayName || user.email?.split("@")[0] || "QuickSolv User",
+          photoURL: user.photoURL
+        };
+        localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
+        router.push(redirectUrl);
+      }
+    });
 
     return () => unsubscribe();
-  }, [router, redirectUrl, email]);
+  }, [router, redirectUrl]);
 
   const handleEmailAuth = async (e: React.FormEvent, isSignUp = false) => {
     e.preventDefault();
