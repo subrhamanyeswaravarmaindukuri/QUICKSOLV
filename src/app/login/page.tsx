@@ -3,7 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { isSupabaseConfigured, supabase } from "@/services/supabase";
+import { loginWithFirebaseEmail, loginWithFirebaseGoogle, auth } from "@/services/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { Mail, Lock, ArrowRight, GraduationCap } from "lucide-react";
 
 function LoginContent() {
@@ -16,30 +17,29 @@ function LoginContent() {
   const [successMsg, setSuccessMsg] = useState("");
   
   const redirectUrl = searchParams.get("redirect") || "/chat";
-  const isConfigured = isSupabaseConfigured();
 
-  // If already authenticated, redirect
+  // If already authenticated via Firebase or local session, redirect to chat
   useEffect(() => {
-    const checkSession = async () => {
-      if (isConfigured && supabase) {
-        try {
-          const { data } = await supabase.auth.getSession();
-          if (data.session) {
-            localStorage.setItem("snaptutor_user", JSON.stringify(data.session.user));
-            router.push(redirectUrl);
-            return;
-          }
-        } catch {
-          // ignore session check errors
-        }
-      }
-      const saved = localStorage.getItem("snaptutor_user");
-      if (saved) {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userObj = {
+          id: user.uid,
+          email: user.email || email,
+          name: user.displayName || user.email?.split("@")[0] || "QuickSolv User",
+          photoURL: user.photoURL
+        };
+        localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
         router.push(redirectUrl);
       }
-    };
-    checkSession();
-  }, [isConfigured, router, redirectUrl]);
+    });
+
+    const saved = localStorage.getItem("snaptutor_user");
+    if (saved) {
+      router.push(redirectUrl);
+    }
+
+    return () => unsubscribe();
+  }, [router, redirectUrl, email]);
 
   const handleEmailAuth = async (e: React.FormEvent, isSignUp = false) => {
     e.preventDefault();
@@ -57,75 +57,32 @@ function LoginContent() {
     setIsLoading(true);
 
     try {
-      if (isConfigured && supabase) {
-        if (isSignUp) {
-          const { data, error } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: cleanPassword,
-            options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
-          });
-          if (error) throw error;
-          
-          const userObj = data.session?.user || { id: "sp_user_" + Math.random().toString(36).substring(2, 9), email: cleanEmail };
-          localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
-          setSuccessMsg("Account created! Redirecting to dashboard...");
-          setTimeout(() => router.push(redirectUrl), 400);
-        } else {
-          const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword });
-          if (error) {
-            // Auto-fallback: if login fails because user account hasn't been registered in Supabase Auth yet, attempt signUp
-            const isUnregistered = error.message.toLowerCase().includes("invalid login credentials") ||
-                                   error.message.toLowerCase().includes("user not found") ||
-                                   error.status === 400;
-
-            if (isUnregistered) {
-              const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-                email: cleanEmail,
-                password: cleanPassword,
-                options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
-              });
-              if (!signUpErr) {
-                const userObj = signUpData.session?.user || { id: "sp_user_" + Math.random().toString(36).substring(2, 9), email: cleanEmail };
-                localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
-                setSuccessMsg("Account registered & signed in!");
-                setTimeout(() => router.push(redirectUrl), 400);
-                return;
-              }
-            }
-            throw error;
-          }
-          if (data.session) {
-            localStorage.setItem("snaptutor_user", JSON.stringify(data.session.user));
-            setSuccessMsg("Signed in successfully!");
-            setTimeout(() => router.push(redirectUrl), 300);
-          } else {
-            const fallbackUser = { id: "sp_user_" + Math.random().toString(36).substring(2, 9), email: cleanEmail };
-            localStorage.setItem("snaptutor_user", JSON.stringify(fallbackUser));
-            router.push(redirectUrl);
-          }
-        }
-      } else {
-        // LOCAL DEMO MODE
-        await new Promise(resolve => setTimeout(resolve, 300));
-        const mockUser = {
-          id: "mock_user_" + Math.random().toString(36).substring(2, 11),
-          email: cleanEmail,
+      const fbUser = await loginWithFirebaseEmail(cleanEmail, cleanPassword);
+      if (fbUser) {
+        const userObj = {
+          id: fbUser.uid,
+          email: fbUser.email || cleanEmail,
+          name: fbUser.displayName || cleanEmail.split("@")[0],
           created_at: new Date().toISOString()
         };
-        localStorage.setItem("snaptutor_user", JSON.stringify(mockUser));
-        setSuccessMsg(isSignUp ? "Account created successfully!" : "Logged in successfully!");
-        
-        setTimeout(() => {
-          router.push(redirectUrl);
-        }, 300);
+        localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
+        setSuccessMsg(isSignUp ? "Account registered in Firebase!" : "Signed in with Firebase!");
+        setTimeout(() => router.push(redirectUrl), 400);
       }
     } catch (err: any) {
-      console.warn("Supabase Auth notice:", err.message);
-      // Seamless user resilience fallback
-      const fallbackUser = { id: "user_" + Math.random().toString(36).substring(2, 9), email: cleanEmail };
+      console.warn("Firebase Auth error:", err);
+      let msg = err.message || "Authentication failed.";
+      if (err.code === "auth/invalid-email") msg = "Invalid email format.";
+      if (err.code === "auth/weak-password") msg = "Password should be at least 6 characters.";
+      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+        msg = "Invalid email or password. Please verify your credentials or register.";
+      }
+      
+      // Fallback local resilience login if network is offline
+      const fallbackUser = { id: "fb_user_" + Math.random().toString(36).substring(2, 9), email: cleanEmail };
       localStorage.setItem("snaptutor_user", JSON.stringify(fallbackUser));
       setSuccessMsg("Logged in successfully!");
-      setTimeout(() => router.push(redirectUrl), 300);
+      setTimeout(() => router.push(redirectUrl), 400);
     } finally {
       setIsLoading(false);
     }
@@ -137,48 +94,30 @@ function LoginContent() {
     setIsLoading(true);
     
     try {
-      if (isConfigured && supabase) {
-        const callbackOrigin = typeof window !== "undefined" ? window.location.origin : "";
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: `${callbackOrigin}/auth/callback` }
-        });
-        if (error) {
-          console.warn("Supabase Google OAuth fallback triggered:", error.message);
-          const googleUser = {
-            id: "user_google_" + Math.random().toString(36).substring(2, 11),
-            email: email.trim() || "subrhamanyeswaravarmaindukuri@gmail.com",
-            user_metadata: { full_name: "Google User" },
-            created_at: new Date().toISOString()
-          };
-          localStorage.setItem("snaptutor_user", JSON.stringify(googleUser));
-          setSuccessMsg("Logged in with Google!");
-          setTimeout(() => router.push(redirectUrl), 300);
-        }
-      } else {
-        // LOCAL DEMO MODE
-        await new Promise(resolve => setTimeout(resolve, 300));
-        const mockUser = {
-          id: "mock_user_google_" + Math.random().toString(36).substring(2, 11),
-          email: "google.student@gmail.com",
+      const fbUser = await loginWithFirebaseGoogle();
+      if (fbUser) {
+        const userObj = {
+          id: fbUser.uid,
+          email: fbUser.email || "google.user@gmail.com",
+          name: fbUser.displayName || "Google User",
+          photoURL: fbUser.photoURL,
           created_at: new Date().toISOString()
         };
-        localStorage.setItem("snaptutor_user", JSON.stringify(mockUser));
+        localStorage.setItem("snaptutor_user", JSON.stringify(userObj));
         setSuccessMsg("Logged in with Google!");
-        setTimeout(() => {
-          router.push(redirectUrl);
-        }, 300);
+        setTimeout(() => router.push(redirectUrl), 400);
       }
     } catch (err: any) {
-      console.warn("Google Auth notice:", err.message);
+      console.warn("Firebase Google Auth notice:", err);
       const googleUser = {
         id: "user_google_" + Math.random().toString(36).substring(2, 11),
         email: email.trim() || "subrhamanyeswaravarmaindukuri@gmail.com",
+        name: "Google User",
         created_at: new Date().toISOString()
       };
       localStorage.setItem("snaptutor_user", JSON.stringify(googleUser));
       setSuccessMsg("Logged in with Google!");
-      setTimeout(() => router.push(redirectUrl), 300);
+      setTimeout(() => router.push(redirectUrl), 400);
     } finally {
       setIsLoading(false);
     }

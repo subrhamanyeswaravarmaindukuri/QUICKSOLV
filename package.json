@@ -18,6 +18,7 @@
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "autoprefixer": "^10.5.4",
+    "firebase": "^12.18.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.31.0",
     "mathjs": "^15.2.0",
