@@ -54,7 +54,7 @@ export async function generateRawOxAlphaText(prompt: string, userApiKey?: string
             model: model,
             messages: [{ role: "user", content: prompt }],
             temperature: 0.3,
-            max_tokens: 250
+            max_tokens: 1500
           })
         });
 
@@ -142,7 +142,7 @@ Return your response as a single valid JSON object matching:
             model: model,
             messages: messages,
             temperature: 0.3,
-            max_tokens: 250
+            max_tokens: 1500
           })
         });
 

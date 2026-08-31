@@ -4,7 +4,7 @@ import { createApiErrorResponse } from "@/core/security/apiErrors";
 import { routeStudyRequest } from "@/services/ai/router";
 import { dbService } from "@/services/supabase";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 const SECURITY_HEADERS = {
   "Access-Control-Allow-Origin": "*",

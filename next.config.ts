@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "export",
+  /* Dynamic Next.js Server & API Handler capabilities for Vercel */
 };
 
 export default nextConfig;

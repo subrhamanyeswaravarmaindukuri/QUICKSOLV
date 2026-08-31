@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbService, supabase } from "@/services/supabase";
 import { createApiErrorResponse } from "@/core/security/apiErrors";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 async function getUserId(request: Request): Promise<string> {
   if (supabase) {

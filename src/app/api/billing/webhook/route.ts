@@ -3,7 +3,7 @@ import { defaultBillingProvider } from "@/core/billing/paymentProvider";
 import { dbService } from "@/services/supabase";
 import { PLAN_CONFIGURATIONS } from "@/core/billing/pricing";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {

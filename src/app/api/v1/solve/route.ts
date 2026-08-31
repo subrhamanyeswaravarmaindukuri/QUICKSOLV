@@ -6,7 +6,7 @@ import { GeminiStudyResponse } from "@/services/ai/gemini";
 import { evaluateMathExpression, tryResolveCalculator, compareCalculations } from "@/services/ai/calculation";
 import { dbService } from "@/services/supabase";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 const SECURITY_HEADERS = {
   "Access-Control-Allow-Origin": "*",

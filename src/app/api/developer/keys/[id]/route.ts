@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbService, supabase } from "@/services/supabase";
 import { createApiErrorResponse } from "@/core/security/apiErrors";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   return [{ id: "key_demo_123" }];

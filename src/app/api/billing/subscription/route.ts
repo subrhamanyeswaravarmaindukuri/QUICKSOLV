@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { quickSolvEntitlementService } from "@/core/billing/entitlementService";
 import { dbService } from "@/services/supabase";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {

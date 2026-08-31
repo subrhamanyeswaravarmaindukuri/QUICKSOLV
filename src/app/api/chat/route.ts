@@ -9,7 +9,7 @@ import { tryResolveCalculator } from "@/services/ai/calculation";
 import { checkRateLimit } from "@/core/security/rateLimiter";
 import { createApiErrorResponse } from "@/core/security/apiErrors";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
