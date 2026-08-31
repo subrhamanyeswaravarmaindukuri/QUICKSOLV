@@ -8,6 +8,8 @@ import {
   supabase,
   dbService
 } from "@/services/supabase";
+import { auth, saveFirebaseUserData } from "@/services/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { generatePptxFile, PresentationData, cleanMarkdownText } from "@/services/pptxGenerator";
 import {
   Send,
@@ -1092,32 +1094,40 @@ function ChatContent() {
     }
   }, [quizHistory]);
 
-  // Load user session
+  // Load user session from Firebase Auth / local storage
   useEffect(() => {
-    const fetchUser = async () => {
-      if (isConfigured && supabase) {
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          setUser(data.session.user);
-        }
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        saveFirebaseUserData(firebaseUser);
+        const loggedUser = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "QuickSolv Student",
+          photoURL: firebaseUser.photoURL || ""
+        };
+        localStorage.setItem("snaptutor_user", JSON.stringify(loggedUser));
+        setUser(loggedUser);
       } else {
         const saved = localStorage.getItem("snaptutor_user");
         if (saved) {
-          setUser(JSON.parse(saved));
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed && (parsed.id || parsed.email)) {
+              setUser(parsed);
+            } else {
+              router.push("/login");
+            }
+          } catch {
+            router.push("/login");
+          }
         } else {
-          // Default mock user profile matching screenshot ("Ananya Kumar")
-          const defaultUser = {
-            id: "demo-user-123",
-            email: "ananya.kumar@quicksolv.edu",
-            name: "Ananya Kumar"
-          };
-          localStorage.setItem("snaptutor_user", JSON.stringify(defaultUser));
-          setUser(defaultUser);
+          router.push("/login");
         }
       }
-    };
-    fetchUser();
-  }, [isConfigured]);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   // Load user profile from localStorage
   useEffect(() => {
