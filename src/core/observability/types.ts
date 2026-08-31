@@ -10,7 +10,8 @@ export type FailureCategory =
   | "PROVIDER_ERROR"
   | "TOOL_ERROR"
   | "QUALITY_GATE_ERROR"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "BILLING_ERROR";
 
 export interface LogMetadata {
   correlationId?: string;
@@ -39,6 +40,13 @@ export interface MetricCounters {
   providerFailureCount: number;
   qualityGateFailureCount: number;
   toolFailureCount: number;
+  billingCheckCount: number;
+  creditChargeCount: number;
+  creditExhaustedCount: number;
+  subscriptionActiveCount: number;
+  billingFailureCount: number;
+  webhookFailureCount: number;
+  idempotencyHitCount: number;
 }
 
 export interface ProviderHealthState {

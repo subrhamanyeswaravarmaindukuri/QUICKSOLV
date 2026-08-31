@@ -10,7 +10,14 @@ export class QuickSolvMetricsCollector {
     authFailureCount: 0,
     providerFailureCount: 0,
     qualityGateFailureCount: 0,
-    toolFailureCount: 0
+    toolFailureCount: 0,
+    billingCheckCount: 0,
+    creditChargeCount: 0,
+    creditExhaustedCount: 0,
+    subscriptionActiveCount: 0,
+    billingFailureCount: 0,
+    webhookFailureCount: 0,
+    idempotencyHitCount: 0
   };
 
   private latenciesMs: number[] = [];
@@ -39,6 +46,34 @@ export class QuickSolvMetricsCollector {
       this.counters.qualityGateFailureCount++;
     } else if (category === "TOOL_ERROR") {
       this.counters.toolFailureCount++;
+    } else if (category === "BILLING_ERROR") {
+      this.counters.billingFailureCount++;
+    }
+  }
+
+  recordBillingMetrics(type: "BILLING_CHECK" | "CREDIT_CHARGE" | "CREDIT_EXHAUSTED" | "SUBSCRIPTION_ACTIVE" | "BILLING_FAILURE" | "WEBHOOK_FAILURE" | "IDEMPOTENCY_HIT"): void {
+    switch (type) {
+      case "BILLING_CHECK":
+        this.counters.billingCheckCount++;
+        break;
+      case "CREDIT_CHARGE":
+        this.counters.creditChargeCount++;
+        break;
+      case "CREDIT_EXHAUSTED":
+        this.counters.creditExhaustedCount++;
+        break;
+      case "SUBSCRIPTION_ACTIVE":
+        this.counters.subscriptionActiveCount++;
+        break;
+      case "BILLING_FAILURE":
+        this.counters.billingFailureCount++;
+        break;
+      case "WEBHOOK_FAILURE":
+        this.counters.webhookFailureCount++;
+        break;
+      case "IDEMPOTENCY_HIT":
+        this.counters.idempotencyHitCount++;
+        break;
     }
   }
 

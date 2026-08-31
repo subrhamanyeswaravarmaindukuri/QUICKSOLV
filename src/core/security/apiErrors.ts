@@ -6,6 +6,11 @@ export type ApiErrorCode =
   | "API_KEY_REVOKED"
   | "RATE_LIMIT_EXCEEDED"
   | "QUOTA_EXCEEDED"
+  | "INSUFFICIENT_CREDITS"
+  | "SUBSCRIPTION_REQUIRED"
+  | "PAYMENT_REQUIRED"
+  | "SUBSCRIPTION_EXPIRED"
+  | "BILLING_PROVIDER_ERROR"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "INVALID_REQUEST"
@@ -22,6 +27,11 @@ const ERROR_MAP: Record<ApiErrorCode, ErrorConfig> = {
   API_KEY_REVOKED: { status: 401, message: "The provided API key has been revoked." },
   RATE_LIMIT_EXCEEDED: { status: 429, message: "Rate limit exceeded. Please wait before making additional requests." },
   QUOTA_EXCEEDED: { status: 403, message: "Monthly credit quota exceeded. Please upgrade your plan." },
+  INSUFFICIENT_CREDITS: { status: 403, message: "Your credit balance is insufficient. Please upgrade your plan or wait for your monthly reset." },
+  SUBSCRIPTION_REQUIRED: { status: 403, message: "This feature requires an active paid subscription." },
+  PAYMENT_REQUIRED: { status: 402, message: "Payment is required to complete this action." },
+  SUBSCRIPTION_EXPIRED: { status: 403, message: "Your subscription has expired. Please renew your plan." },
+  BILLING_PROVIDER_ERROR: { status: 500, message: "Billing provider service encountered an error." },
   UNAUTHORIZED: { status: 401, message: "Authentication is required to access this resource." },
   FORBIDDEN: { status: 403, message: "You do not have permission to access this resource." },
   INVALID_REQUEST: { status: 400, message: "Invalid request payload or parameters." },
