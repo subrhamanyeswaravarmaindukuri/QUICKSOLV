@@ -738,7 +738,7 @@ Please populate the "career_mode" object in rich detail:
 
   // DISPATCH TO OPENROUTER IF USER SELECTED A NON-GEMINI MODEL OR LACKS DIRECT GEMINI KEY
   const isClaudeOrGpt = model.includes("claude") || model.includes("gpt") || model.includes("oss") || model.includes("free") || model.includes("router");
-  const isDirectGeminiKeyValid = !!(apiKey && (apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.")));
+  const isDirectGeminiKeyValid = !!(apiKey && apiKey.startsWith("AIzaSy"));
   
   if (isClaudeOrGpt && !openRouterKey) {
     throw new Error("Claude, GPT-OSS, and Free OpenRouter models require OPENROUTER_API_KEY to be configured in your environment.");
@@ -822,7 +822,7 @@ Please populate the "career_mode" object in rich detail:
     const payload: any = {
       model: mappedModel,
       messages,
-      max_tokens: 6000
+      max_tokens: 1500
     };
 
     if (options.mode !== "chat") {
@@ -903,7 +903,7 @@ Please populate the "career_mode" object in rich detail:
 
   // NATIVE GEMINI API FALLBACK
   if (!isDirectGeminiKeyValid) {
-    throw new Error("Invalid or missing Google Gemini API Key. Google Gemini keys must start with 'AIzaSy' or 'AQ.'. Please configure a valid key or use OpenRouter.");
+    throw new Error("Invalid or missing Google Gemini API Key. Google Gemini keys must start with 'AIzaSy'. Please configure a valid key or use OpenRouter.");
   }
   
   const googleCandidates = Array.from(new Set([
@@ -1166,7 +1166,7 @@ export async function generateGeminiContentStream(
   const model = options.modelOverride || "ox-alpha";
   
   const isClaudeOrGpt = model.includes("claude") || model.includes("gpt") || model.includes("ox-alpha") || model.includes("oss") || model.includes("free") || model.includes("router");
-  const isDirectGeminiKeyValid = !!(apiKey && (apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.")));
+  const isDirectGeminiKeyValid = !!(apiKey && apiKey.startsWith("AIzaSy"));
 
   if (!openRouterKey && !isDirectGeminiKeyValid) {
     throw new Error("API Keys are missing. Please configure a valid OxAlpha API key or Google Gemini key.");
