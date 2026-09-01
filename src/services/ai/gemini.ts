@@ -738,7 +738,7 @@ Please populate the "career_mode" object in rich detail:
 
   // DISPATCH TO OPENROUTER IF USER SELECTED A NON-GEMINI MODEL OR LACKS DIRECT GEMINI KEY
   const isClaudeOrGpt = model.includes("claude") || model.includes("gpt") || model.includes("oss") || model.includes("free") || model.includes("router");
-  const isDirectGeminiKeyValid = !!(apiKey && apiKey.startsWith("AIzaSy"));
+  const isDirectGeminiKeyValid = !!(apiKey && (apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.")));
   
   if (isClaudeOrGpt && !openRouterKey) {
     throw new Error("Claude, GPT-OSS, and Free OpenRouter models require OPENROUTER_API_KEY to be configured in your environment.");
@@ -907,7 +907,7 @@ Please populate the "career_mode" object in rich detail:
   }
   
   const googleCandidates = Array.from(new Set([
-    model.includes("pro") ? "gemini-1.5-pro" : "gemini-2.0-flash",
+    "gemini-3.6-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-pro"
@@ -1166,7 +1166,7 @@ export async function generateGeminiContentStream(
   const model = options.modelOverride || "ox-alpha";
   
   const isClaudeOrGpt = model.includes("claude") || model.includes("gpt") || model.includes("ox-alpha") || model.includes("oss") || model.includes("free") || model.includes("router");
-  const isDirectGeminiKeyValid = !!(apiKey && apiKey.startsWith("AIzaSy"));
+  const isDirectGeminiKeyValid = !!(apiKey && (apiKey.startsWith("AIzaSy") || apiKey.startsWith("AQ.")));
 
   if (!openRouterKey && !isDirectGeminiKeyValid) {
     throw new Error("API Keys are missing. Please configure a valid OxAlpha API key or Google Gemini key.");
